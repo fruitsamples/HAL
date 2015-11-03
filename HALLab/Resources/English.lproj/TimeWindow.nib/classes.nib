@@ -1,0 +1,27 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {DevicePopUpAction = id; }; 
+            CLASS = HLDeviceMenuController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {mDelegate = id; mDevicePopUp = NSPopUpButton; }; 
+            SUPERCLASS = NSObject; 
+        }, 
+        {
+            ACTIONS = {DeviceInfoButtonAction = id; UpdateRatePopUpAction = id; }; 
+            CLASS = HLTimeWindowController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                mCurrentTimeTextField = NSTextField; 
+                mDeviceMenuController = HLDeviceMenuController; 
+                mIsRunningTextField = NSTextField; 
+                mNearestStartTimeTextField = NSTextField; 
+                mUpdateRatePopUp = NSPopUpButton; 
+            }; 
+            SUPERCLASS = NSWindowController; 
+        }, 
+        {CLASS = NSObject; LANGUAGE = ObjC; }
+    ); 
+    IBVersion = 1; 
+}

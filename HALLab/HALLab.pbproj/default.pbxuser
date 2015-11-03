@@ -1,0 +1,91 @@
+// !$*UTF8*$!
+{
+	29B97313FDCFA39411CA2CEA = {
+		activeBuildStyle = 4A9504CCFFE6A4B311CA0CBA;
+		activeExecutable = 2DF41D9004292ACD00CA2184;
+		activeTarget = 29B97326FDCFA39411CA2CEA;
+		executables = (
+			2DF41D9004292ACD00CA2184,
+		);
+		projectwideBuildSettings = {
+		};
+		wantsIndex = 1;
+		wantsSCM = -1;
+	};
+	29B97326FDCFA39411CA2CEA = {
+		activeExec = 0;
+		executables = (
+			2DF41D9004292ACD00CA2184,
+		);
+	};
+	2DF41D9004292ACD00CA2184 = {
+		activeArgIndex = 2147483647;
+		activeArgIndices = (
+		);
+		argumentStrings = (
+		);
+		configStateDict = {
+		};
+		debuggerPlugin = GDBDebugging;
+		dylibVariantSuffix = "";
+		enableDebugStr = 1;
+		environmentEntries = (
+			{
+				active = NO;
+				name = MallocStackLogging;
+				value = 1;
+			},
+			{
+				active = NO;
+				name = MallocStackLoggingNoCompact;
+				value = 1;
+			},
+			{
+				active = NO;
+				name = MallocScribble;
+				value = 1;
+			},
+			{
+				active = NO;
+				name = MallocGuardEdges;
+				value = 1;
+			},
+			{
+				active = NO;
+				name = DYLD_INSERT_LIBRARIES;
+				value = /usr/local/lib/libgmalloc.dylib;
+			},
+			{
+				active = NO;
+				name = DYLD_INSERT_LIBRARIES;
+				value = /usr/local/lib/libgmalloc.B.dylib;
+			},
+			{
+				active = NO;
+				name = DYLD_FORCE_FLAT_NAMESPACE;
+				value = 1;
+			},
+			{
+				active = NO;
+				name = CoreAudio_HAL_Ignore_Standard_PlugIns;
+				value = 1;
+			},
+			{
+				active = NO;
+				name = CoreAudio_HAL_Ignore_BuiltIn_PlugIns;
+				value = 1;
+			},
+			{
+				active = NO;
+				name = CoreAudio_HAL_Extra_PlugIn_Directory;
+				value = /Volumes/PB1/Development/BuildProducts;
+			},
+		);
+		isa = PBXExecutable;
+		name = HALLab;
+		shlibInfoDictList = (
+		);
+		sourceDirectories = (
+		);
+	};
+}

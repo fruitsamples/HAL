@@ -1,0 +1,27 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            CLASS = HLCPULoadHistoryView; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {mDataSource = id; }; 
+            SUPERCLASS = NSView; 
+        }, 
+        {
+            ACTIONS = {
+                CPULoadHistoryPixelsPerItemPopUpAction = id; 
+                CPULoadHistoryUpdateFrequencyPopUpAction = id; 
+            }; 
+            CLASS = HLCPUWindowController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                mCPULoadHistoryPixelsPerItemPopUp = NSPopUpButton; 
+                mCPULoadHistoryUpdateFrequencyPopUp = NSPopUpButton; 
+                mCPULoadHistoryView = HLCPULoadHistoryView; 
+            }; 
+            SUPERCLASS = NSWindowController; 
+        }, 
+        {CLASS = NSObject; LANGUAGE = ObjC; }
+    ); 
+    IBVersion = 1; 
+}

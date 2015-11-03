@@ -1,0 +1,19 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {
+                NewFilePlayerWindow = id; 
+                NewIOCycleTelemetryWindow = id; 
+                NewInputWindow = id; 
+                NewTimeWindow = id; 
+                ShowCPUWindow = id; 
+                ShowSystemWindow = id; 
+            }; 
+            CLASS = HLApplicationDelegate; 
+            LANGUAGE = ObjC; 
+            SUPERCLASS = NSObject; 
+        }
+    ); 
+    IBVersion = 1; 
+}

@@ -1,0 +1,33 @@
+{
+    IBClasses = (
+        {CLASS = FirstResponder; LANGUAGE = ObjC; SUPERCLASS = NSObject; }, 
+        {
+            ACTIONS = {
+                CaptureRatePopUpAction = id; 
+                ClearDataButtonAction = id; 
+                DeviceInfoButtonAction = id; 
+                DevicePopUpAction = id; 
+                NextButtonAction = id; 
+                PreviousButtonAction = id; 
+                ProcessIDTextFieldAction = id; 
+                SaveDataButtonAction = id; 
+                SaveZerosButtonAction = id; 
+                SelectProcessButtonAction = id; 
+                ShowRadioMatrixAction = id; 
+                TelemetryOutlineAction = id; 
+            }; 
+            CLASS = HLIOCycleTelemetryWindowController; 
+            LANGUAGE = ObjC; 
+            OUTLETS = {
+                mCaptureRatePopUp = NSPopUpButton; 
+                mDevicePopUp = NSPopUpButton; 
+                mProcessIDTextField = NSTextField; 
+                mProcessNameTextField = NSTextField; 
+                mShowRadioButtonMatrix = NSMatrix; 
+                mTelemetryOutline = NSOutlineView; 
+            }; 
+            SUPERCLASS = NSWindowController; 
+        }
+    ); 
+    IBVersion = 1; 
+}
