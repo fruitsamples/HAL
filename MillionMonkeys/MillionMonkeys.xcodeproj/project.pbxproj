@@ -105,30 +105,6 @@
 		};
 /* End PBXBuildFile section */
 
-/* Begin PBXBuildStyle section */
-		4A9504CCFFE6A4B311CA0CBA = {
-			isa = PBXBuildStyle;
-			buildSettings = {
-				COPY_PHASE_STRIP = NO;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_ENABLE_FIX_AND_CONTINUE = YES;
-				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				OPTIMIZATION_CFLAGS = "-O0";
-			};
-			name = Development;
-		};
-		4A9504CDFFE6A4B311CA0CBA = {
-			isa = PBXBuildStyle;
-			buildSettings = {
-				COPY_PHASE_STRIP = YES;
-				GCC_ENABLE_FIX_AND_CONTINUE = NO;
-				ZERO_LINK = NO;
-			};
-			name = Deployment;
-		};
-/* End PBXBuildStyle section */
-
 /* Begin PBXFileReference section */
 		0018B18D02F6E72400CA2268 = {
 			isa = PBXFileReference;
@@ -225,8 +201,8 @@
 		};
 		3E8BF23A079CA91E00021B09 = {
 			isa = PBXFileReference;
-			explicitFileType = wrapper.application;
 			includeInIndex = 0;
+			lastKnownFileType = wrapper.application;
 			path = MillionMonkeys.app;
 			sourceTree = BUILT_PRODUCTS_DIR;
 		};
@@ -634,28 +610,6 @@
 			);
 			buildRules = (
 			);
-			buildSettings = {
-				FRAMEWORK_SEARCH_PATHS = "";
-				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					KERNEL_PRIVATE,
-					LATENCY_SAMPLING_ONLY,
-				);
-				HEADER_SEARCH_PATHS = "";
-				INFOPLIST_FILE = "Info-MillionMonkeys.plist";
-				INSTALL_PATH = "$(HOME)/Applications";
-				LIBRARY_SEARCH_PATHS = "";
-				OTHER_CFLAGS = "";
-				OTHER_LDFLAGS = "";
-				PRODUCT_NAME = MillionMonkeys;
-				SECTORDER_FLAGS = "";
-				WARNING_CFLAGS = (
-					"-Wmost",
-					"-Wno-four-char-constants",
-					"-Wno-unknown-pragmas",
-				);
-				WRAPPER_EXTENSION = app;
-			};
 			dependencies = (
 			);
 			name = MillionMonkeys;
@@ -670,12 +624,6 @@
 		29B97313FDCFA39411CA2CEA = {
 			isa = PBXProject;
 			buildConfigurationList = 3E147C010898101900C980E5;
-			buildSettings = {
-			};
-			buildStyles = (
-				4A9504CCFFE6A4B311CA0CBA,
-				4A9504CDFFE6A4B311CA0CBA,
-			);
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				English,
@@ -840,18 +788,21 @@
 		3E147C020898101900C980E5 = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
 			};
 			name = Development;
 		};
 		3E147C030898101900C980E5 = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
 			};
 			name = Deployment;
 		};
 		3E147C040898101900C980E5 = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
 			};
 			name = Default;
 		};

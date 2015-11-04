@@ -489,55 +489,6 @@
 		};
 /* End PBXBuildFile section */
 
-/* Begin PBXBuildStyle section */
-		2D56A20E05EADEE0007FE757 = {
-			isa = PBXBuildStyle;
-			buildSettings = {
-				COPY_PHASE_STRIP = NO;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PRECOMPILE_PREFIX_HEADER = NO;
-				GCC_PREFIX_HEADER = "";
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"$(value)",
-					"CoreAudio_Debug=1",
-				);
-			};
-			name = "Debug-No PFE";
-		};
-		2DC6D6C0067666F90026606E = {
-			isa = PBXBuildStyle;
-			buildSettings = {
-				COPY_PHASE_STRIP = NO;
-				GCC_GENERATE_PROFILING_CODE = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"$(value)",
-					"CoreAudio_Debug=1",
-				);
-			};
-			name = Profile;
-		};
-		4A9504CCFFE6A4B311CA0CBA = {
-			isa = PBXBuildStyle;
-			buildSettings = {
-				COPY_PHASE_STRIP = NO;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_PREPROCESSOR_DEFINITIONS = (
-					"$(value)",
-					"CoreAudio_Debug=1",
-				);
-			};
-			name = Debug;
-		};
-		4A9504CDFFE6A4B311CA0CBA = {
-			isa = PBXBuildStyle;
-			buildSettings = {
-				COPY_PHASE_STRIP = YES;
-			};
-			name = Release;
-		};
-/* End PBXBuildStyle section */
-
 /* Begin PBXFileReference section */
 		1058C7A1FEA54F0111CA2CBB = {
 			isa = PBXFileReference;
@@ -1702,32 +1653,6 @@
 			);
 			buildRules = (
 			);
-			buildSettings = {
-				GCC_C_LANGUAGE_STANDARD = gnu99;
-				GCC_GENERATE_DEBUGGING_SYMBOLS = YES;
-				GCC_PRECOMPILE_PREFIX_HEADER = YES;
-				GCC_PREFIX_HEADER = Source/HLPrefix.h;
-				GCC_PREPROCESSOR_DEFINITIONS = "LATENCY_SAMPLING_ONLY=1";
-				GCC_WARN_CHECK_SWITCH_STATEMENTS = YES;
-				GCC_WARN_HIDDEN_VIRTUAL_FUNCTIONS = YES;
-				GCC_WARN_INITIALIZER_NOT_FULLY_BRACKETED = YES;
-				GCC_WARN_MISSING_PARENTHESES = YES;
-				GCC_WARN_NON_VIRTUAL_DESTRUCTOR = YES;
-				GCC_WARN_SHADOW = YES;
-				GCC_WARN_SIGN_COMPARE = YES;
-				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = YES;
-				GCC_WARN_UNKNOWN_PRAGMAS = YES;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_LABEL = YES;
-				GCC_WARN_UNUSED_PARAMETER = NO;
-				GCC_WARN_UNUSED_VALUE = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				INFOPLIST_FILE = Resources/Info.plist;
-				INSTALL_PATH = "$(SYSTEM_DEVELOPER_APPS_DIR)/Audio/";
-				PRODUCT_NAME = HALLab;
-				WARNING_CFLAGS = "-Wall";
-				WRAPPER_EXTENSION = app;
-			};
 			dependencies = (
 			);
 			name = HALLab;
@@ -1742,14 +1667,6 @@
 		29B97313FDCFA39411CA2CEA = {
 			isa = PBXProject;
 			buildConfigurationList = 2D89D8900868CB1F00270534;
-			buildSettings = {
-			};
-			buildStyles = (
-				4A9504CCFFE6A4B311CA0CBA,
-				4A9504CDFFE6A4B311CA0CBA,
-				2D56A20E05EADEE0007FE757,
-				2DC6D6C0067666F90026606E,
-			);
 			hasScannedForEncodings = 1;
 			mainGroup = 29B97314FDCFA39411CA2CEA;
 			projectDirPath = "";
@@ -2043,24 +1960,28 @@
 		2D89D8910868CB1F00270534 = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
 			};
 			name = Debug;
 		};
 		2D89D8920868CB1F00270534 = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
 			};
 			name = Release;
 		};
 		2D89D8930868CB1F00270534 = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
 			};
 			name = "Debug-No PFE";
 		};
 		2D89D8940868CB1F00270534 = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				SDKROOT = /Developer/SDKs/MacOSX10.4u.sdk;
 			};
 			name = Profile;
 		};
