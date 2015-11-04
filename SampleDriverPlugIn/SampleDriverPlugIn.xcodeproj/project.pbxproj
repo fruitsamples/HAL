@@ -1,0 +1,485 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 42;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2D73F89708E2343000EB0F54 = {
+			isa = PBXBuildFile;
+			fileRef = 2D73F89508E2343000EB0F54;
+		};
+		2D73F89808E2343000EB0F54 = {
+			isa = PBXBuildFile;
+			fileRef = 2D73F89608E2343000EB0F54;
+		};
+		2DB1A3D008DA8CD6002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A3CE08DA8CD6002226B9;
+		};
+		2DB1A3D108DA8CD6002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A3CF08DA8CD6002226B9;
+		};
+		2DB1A43108DA8E19002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A42F08DA8E19002226B9;
+		};
+		2DB1A43208DA8E19002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A43008DA8E19002226B9;
+		};
+		2DB1A45308DA8F38002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A44208DA8F38002226B9;
+		};
+		2DB1A45408DA8F38002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A44308DA8F38002226B9;
+		};
+		2DB1A45508DA8F38002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A44408DA8F38002226B9;
+		};
+		2DB1A45608DA8F38002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A44508DA8F38002226B9;
+		};
+		2DB1A45708DA8F38002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A44608DA8F38002226B9;
+		};
+		2DB1A4C008DAA1FC002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A4BE08DAA1FC002226B9;
+		};
+		2DB1A4C108DAA1FC002226B9 = {
+			isa = PBXBuildFile;
+			fileRef = 2DB1A4BF08DAA1FC002226B9;
+		};
+		8D576314048677EA00EA77CD = {
+			isa = PBXBuildFile;
+			fileRef = 0AA1909FFE8422F4C02AAC07;
+		};
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0AA1909FFE8422F4C02AAC07 = {
+			isa = PBXFileReference;
+			lastKnownFileType = wrapper.framework;
+			name = CoreFoundation.framework;
+			path = /System/Library/Frameworks/CoreFoundation.framework;
+			sourceTree = "<absolute>";
+		};
+		2D73F89508E2343000EB0F54 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = SDP_PlugIn.cpp;
+			sourceTree = "<group>";
+		};
+		2D73F89608E2343000EB0F54 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.c.h;
+			path = SDP_PlugIn.h;
+			sourceTree = "<group>";
+		};
+		2D73F8B108E236A900EB0F54 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.exports;
+			path = SampleDriverPlugIn.exp;
+			sourceTree = "<group>";
+		};
+		2DB1A3CE08DA8CD6002226B9 = {
+			isa = PBXFileReference;
+			lastKnownFileType = wrapper.framework;
+			name = CoreAudio.framework;
+			path = /System/Library/Frameworks/CoreAudio.framework;
+			sourceTree = "<absolute>";
+		};
+		2DB1A3CF08DA8CD6002226B9 = {
+			isa = PBXFileReference;
+			lastKnownFileType = wrapper.framework;
+			name = IOKit.framework;
+			path = /System/Library/Frameworks/IOKit.framework;
+			sourceTree = "<absolute>";
+		};
+		2DB1A42F08DA8E19002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = HP_DriverPlugIn.cpp;
+			sourceTree = "<group>";
+		};
+		2DB1A43008DA8E19002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.c.h;
+			path = HP_DriverPlugIn.h;
+			sourceTree = "<group>";
+		};
+		2DB1A44208DA8F38002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = CADebugMacros.cpp;
+			sourceTree = "<group>";
+		};
+		2DB1A44308DA8F38002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.c.h;
+			path = CADebugMacros.h;
+			sourceTree = "<group>";
+		};
+		2DB1A44408DA8F38002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = CADebugPrintf.cpp;
+			sourceTree = "<group>";
+		};
+		2DB1A44508DA8F38002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.c.h;
+			path = CADebugPrintf.h;
+			sourceTree = "<group>";
+		};
+		2DB1A44608DA8F38002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.c.h;
+			path = CAException.h;
+			sourceTree = "<group>";
+		};
+		2DB1A4BE08DAA1FC002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.cpp.cpp;
+			path = CACFMachPort.cpp;
+			sourceTree = "<group>";
+		};
+		2DB1A4BF08DAA1FC002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = sourcecode.c.h;
+			path = CACFMachPort.h;
+			sourceTree = "<group>";
+		};
+		2DB1A54408DAAA4F002226B9 = {
+			isa = PBXFileReference;
+			fileEncoding = 30;
+			lastKnownFileType = text;
+			path = ReadMe.txt;
+			sourceTree = "<group>";
+		};
+		8D576316048677EA00EA77CD = {
+			isa = PBXFileReference;
+			explicitFileType = wrapper.cfbundle;
+			includeInIndex = 0;
+			path = SampleDriverPlugIn.bundle;
+			sourceTree = BUILT_PRODUCTS_DIR;
+		};
+		8D576317048677EA00EA77CD = {
+			isa = PBXFileReference;
+			fileEncoding = 4;
+			lastKnownFileType = text.plist;
+			path = Info.plist;
+			sourceTree = "<group>";
+		};
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8D576313048677EA00EA77CD = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D576314048677EA00EA77CD,
+				2DB1A3D008DA8CD6002226B9,
+				2DB1A3D108DA8CD6002226B9,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		089C166AFE841209C02AAC07 = {
+			isa = PBXGroup;
+			children = (
+				2DB1A54408DAAA4F002226B9,
+				08FB77AFFE84173DC02AAC07,
+				2DB1A42708DA8DB7002226B9,
+				2DB1A43308DA8E26002226B9,
+				089C167CFE841241C02AAC07,
+				089C1671FE841209C02AAC07,
+				19C28FB6FE9D52B211CA2CBB,
+			);
+			name = SampleDriverPlugIn;
+			sourceTree = "<group>";
+		};
+		089C1671FE841209C02AAC07 = {
+			isa = PBXGroup;
+			children = (
+				2DB1A3CE08DA8CD6002226B9,
+				0AA1909FFE8422F4C02AAC07,
+				2DB1A3CF08DA8CD6002226B9,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		089C167CFE841241C02AAC07 = {
+			isa = PBXGroup;
+			children = (
+				8D576317048677EA00EA77CD,
+			);
+			path = Resources;
+			sourceTree = SOURCE_ROOT;
+		};
+		08FB77AFFE84173DC02AAC07 = {
+			isa = PBXGroup;
+			children = (
+				2D73F8B108E236A900EB0F54,
+				2D73F89508E2343000EB0F54,
+				2D73F89608E2343000EB0F54,
+			);
+			path = Source;
+			sourceTree = SOURCE_ROOT;
+		};
+		19C28FB6FE9D52B211CA2CBB = {
+			isa = PBXGroup;
+			children = (
+				8D576316048677EA00EA77CD,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2DB1A42708DA8DB7002226B9 = {
+			isa = PBXGroup;
+			children = (
+				2DB1A42F08DA8E19002226B9,
+				2DB1A43008DA8E19002226B9,
+			);
+			name = HPBase;
+			path = ../HPBase;
+			sourceTree = SOURCE_ROOT;
+		};
+		2DB1A43308DA8E26002226B9 = {
+			isa = PBXGroup;
+			children = (
+				2DB1A4BE08DAA1FC002226B9,
+				2DB1A4BF08DAA1FC002226B9,
+				2DB1A44208DA8F38002226B9,
+				2DB1A44308DA8F38002226B9,
+				2DB1A44408DA8F38002226B9,
+				2DB1A44508DA8F38002226B9,
+				2DB1A44608DA8F38002226B9,
+			);
+			name = PublicUtility;
+			path = /Developer/Examples/CoreAudio/PublicUtility;
+			sourceTree = "<absolute>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXHeadersBuildPhase section */
+		2DB1A42C08DA8DEF002226B9 = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D73F89808E2343000EB0F54,
+				2DB1A43208DA8E19002226B9,
+				2DB1A4C108DAA1FC002226B9,
+				2DB1A45408DA8F38002226B9,
+				2DB1A45608DA8F38002226B9,
+				2DB1A45708DA8F38002226B9,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
+/* Begin PBXNativeTarget section */
+		8D57630D048677EA00EA77CD = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2DB1A3C208DA8C95002226B9;
+			buildPhases = (
+				8D57630F048677EA00EA77CD,
+				2DB1A42C08DA8DEF002226B9,
+				8D576311048677EA00EA77CD,
+				8D576313048677EA00EA77CD,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SampleDriverPlugIn;
+			productInstallPath = "$(HOME)/Library/Bundles";
+			productName = SampleDriverPlugIn;
+			productReference = 8D576316048677EA00EA77CD;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		089C1669FE841209C02AAC07 = {
+			isa = PBXProject;
+			buildConfigurationList = 2DB1A3C608DA8C95002226B9;
+			compatibilityVersion = "Xcode 2.4";
+			hasScannedForEncodings = 1;
+			mainGroup = 089C166AFE841209C02AAC07;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8D57630D048677EA00EA77CD,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		8D57630F048677EA00EA77CD = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8D576311048677EA00EA77CD = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D73F89708E2343000EB0F54,
+				2DB1A43108DA8E19002226B9,
+				2DB1A4C008DAA1FC002226B9,
+				2DB1A45308DA8F38002226B9,
+				2DB1A45508DA8F38002226B9,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		2DB1A3C308DA8C95002226B9 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = YES;
+				DEAD_CODE_STRIPPING = YES;
+				EXPORTED_SYMBOLS_FILE = Source/SampleDriverPlugIn.exp;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DEBUGGING_SYMBOLS = full;
+				GCC_ENABLE_CPP_RTTI = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = s;
+				GCC_PRECOMPILE_PREFIX_HEADER = NO;
+				GCC_PREFIX_HEADER = "";
+				GCC_PREPROCESSOR_DEFINITIONS = "HAL_Build=1";
+				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_CHECK_SWITCH_STATEMENTS = YES;
+				GCC_WARN_HIDDEN_VIRTUAL_FUNCTIONS = YES;
+				GCC_WARN_INITIALIZER_NOT_FULLY_BRACKETED = YES;
+				GCC_WARN_MISSING_PARENTHESES = YES;
+				GCC_WARN_SHADOW = YES;
+				GCC_WARN_SIGN_COMPARE = YES;
+				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES;
+				GCC_WARN_UNKNOWN_PRAGMAS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_LABEL = YES;
+				GCC_WARN_UNUSED_PARAMETER = YES;
+				GCC_WARN_UNUSED_VALUE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LIBRARY_STYLE = BUNDLE;
+				OTHER_CFLAGS = "-fconstant-cfstrings";
+				PREBINDING = NO;
+				PRODUCT_NAME = SampleDriverPlugIn;
+			};
+			name = Release;
+		};
+		2DB1A3C408DA8C95002226B9 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				EXPORTED_SYMBOLS_FILE = Source/SampleDriverPlugIn.exp;
+				GCC_C_LANGUAGE_STANDARD = gnu99;
+				GCC_DEBUGGING_SYMBOLS = full;
+				GCC_ENABLE_CPP_RTTI = NO;
+				GCC_MODEL_TUNING = G5;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PRECOMPILE_PREFIX_HEADER = NO;
+				GCC_PREFIX_HEADER = "";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"HAL_Build=1",
+					"CoreAudio_Debug=1",
+				);
+				GCC_WARN_ABOUT_MISSING_NEWLINE = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES;
+				GCC_WARN_CHECK_SWITCH_STATEMENTS = YES;
+				GCC_WARN_HIDDEN_VIRTUAL_FUNCTIONS = YES;
+				GCC_WARN_INITIALIZER_NOT_FULLY_BRACKETED = YES;
+				GCC_WARN_MISSING_PARENTHESES = YES;
+				GCC_WARN_SHADOW = YES;
+				GCC_WARN_SIGN_COMPARE = YES;
+				GCC_WARN_TYPECHECK_CALLS_TO_PRINTF = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = NO;
+				GCC_WARN_UNKNOWN_PRAGMAS = YES;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_LABEL = YES;
+				GCC_WARN_UNUSED_PARAMETER = YES;
+				GCC_WARN_UNUSED_VALUE = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LIBRARY_STYLE = BUNDLE;
+				OTHER_CFLAGS = "-fconstant-cfstrings";
+				PREBINDING = NO;
+				PRODUCT_NAME = SampleDriverPlugIn;
+			};
+			name = Debug;
+		};
+		2DB1A3C708DA8C95002226B9 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				MACOSX_DEPLOYMENT_TARGET = 10.5;
+				SDKROOT = "$(DEVELOPER_SDK_DIR)/MacOSX10.5.sdk";
+			};
+			name = Release;
+		};
+		2DB1A3C808DA8C95002226B9 = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				SDKROOT = "$(DEVELOPER_SDK_DIR)/MacOSX10.5.sdk";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		2DB1A3C208DA8C95002226B9 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2DB1A3C308DA8C95002226B9,
+				2DB1A3C408DA8C95002226B9,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2DB1A3C608DA8C95002226B9 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2DB1A3C708DA8C95002226B9,
+				2DB1A3C808DA8C95002226B9,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 089C1669FE841209C02AAC07;
+}

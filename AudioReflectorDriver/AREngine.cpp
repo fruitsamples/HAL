@@ -1,39 +1,42 @@
-/*	Copyright: 	© Copyright 2005 Apple Computer, Inc. All rights reserved.
-
-	Disclaimer:	IMPORTANT:  This Apple software is supplied to you by Apple Computer, Inc.
-			("Apple") in consideration of your agreement to the following terms, and your
-			use, installation, modification or redistribution of this Apple software
-			constitutes acceptance of these terms.  If you do not agree with these terms,
-			please do not use, install, modify or redistribute this Apple software.
-
-			In consideration of your agreement to abide by the following terms, and subject
-			to these terms, Apple grants you a personal, non-exclusive license, under Apple’s
-			copyrights in this original Apple software (the "Apple Software"), to use,
-			reproduce, modify and redistribute the Apple Software, with or without
-			modifications, in source and/or binary forms; provided that if you redistribute
-			the Apple Software in its entirety and without modifications, you must retain
-			this notice and the following text and disclaimers in all such redistributions of
-			the Apple Software.  Neither the name, trademarks, service marks or logos of
-			Apple Computer, Inc. may be used to endorse or promote products derived from the
-			Apple Software without specific prior written permission from Apple.  Except as
-			expressly stated in this notice, no other rights or licenses, express or implied,
-			are granted by Apple herein, including but not limited to any patent rights that
-			may be infringed by your derivative works or by other works in which the Apple
-			Software may be incorporated.
-
-			The Apple Software is provided by Apple on an "AS IS" basis.  APPLE MAKES NO
-			WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION THE IMPLIED
-			WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY AND FITNESS FOR A PARTICULAR
-			PURPOSE, REGARDING THE APPLE SOFTWARE OR ITS USE AND OPERATION ALONE OR IN
-			COMBINATION WITH YOUR PRODUCTS.
-
-			IN NO EVENT SHALL APPLE BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL OR
-			CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE
-			GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
-			ARISING IN ANY WAY OUT OF THE USE, REPRODUCTION, MODIFICATION AND/OR DISTRIBUTION
-			OF THE APPLE SOFTWARE, HOWEVER CAUSED AND WHETHER UNDER THEORY OF CONTRACT, TORT
-			(INCLUDING NEGLIGENCE), STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN
-			ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+/*	Copyright © 2007 Apple Inc. All Rights Reserved.
+	
+	Disclaimer: IMPORTANT:  This Apple software is supplied to you by 
+			Apple Inc. ("Apple") in consideration of your agreement to the
+			following terms, and your use, installation, modification or
+			redistribution of this Apple software constitutes acceptance of these
+			terms.  If you do not agree with these terms, please do not use,
+			install, modify or redistribute this Apple software.
+			
+			In consideration of your agreement to abide by the following terms, and
+			subject to these terms, Apple grants you a personal, non-exclusive
+			license, under Apple's copyrights in this original Apple software (the
+			"Apple Software"), to use, reproduce, modify and redistribute the Apple
+			Software, with or without modifications, in source and/or binary forms;
+			provided that if you redistribute the Apple Software in its entirety and
+			without modifications, you must retain this notice and the following
+			text and disclaimers in all such redistributions of the Apple Software. 
+			Neither the name, trademarks, service marks or logos of Apple Inc. 
+			may be used to endorse or promote products derived from the Apple
+			Software without specific prior written permission from Apple.  Except
+			as expressly stated in this notice, no other rights or licenses, express
+			or implied, are granted by Apple herein, including but not limited to
+			any patent rights that may be infringed by your derivative works or by
+			other works in which the Apple Software may be incorporated.
+			
+			The Apple Software is provided by Apple on an "AS IS" basis.  APPLE
+			MAKES NO WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION
+			THE IMPLIED WARRANTIES OF NON-INFRINGEMENT, MERCHANTABILITY AND FITNESS
+			FOR A PARTICULAR PURPOSE, REGARDING THE APPLE SOFTWARE OR ITS USE AND
+			OPERATION ALONE OR IN COMBINATION WITH YOUR PRODUCTS.
+			
+			IN NO EVENT SHALL APPLE BE LIABLE FOR ANY SPECIAL, INDIRECT, INCIDENTAL
+			OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+			SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+			INTERRUPTION) ARISING IN ANY WAY OUT OF THE USE, REPRODUCTION,
+			MODIFICATION AND/OR DISTRIBUTION OF THE APPLE SOFTWARE, HOWEVER CAUSED
+			AND WHETHER UNDER THEORY OF CONTRACT, TORT (INCLUDING NEGLIGENCE),
+			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
+			POSSIBILITY OF SUCH DAMAGE.
 */
 /*==================================================================================================
 	AREngine.cpp
@@ -50,6 +53,7 @@
 //	Local Includes
 #include "ARDebug.h"
 #include "ARDevice.h"
+#include "ARStereoPanControl.h"
 
 //	System Incluces
 #include <libkern/sysctl.h>
@@ -259,11 +263,11 @@ bool	AREngine::CreateStreams(IOAudioSampleRate* outInitialSampleRate, UInt32* ou
 		//	allocate and initialize the input stream
 		if(theNumberStreams > 1)
 		{
-			sprintf(theInputStreamName, "Input Stream #%ld", theStreamNumber + 1);
+			snprintf(theInputStreamName, 32, "Input Stream #%ld", theStreamNumber + 1);
 		}
 		else
 		{
-			sprintf(theInputStreamName, "Input Stream");
+			snprintf(theInputStreamName, 32, "Input Stream");
 		}
 		theInputStream = new IOAudioStream;
 		FailIfNULLWithAction(theInputStream, theAnswer = false, Error, "AREngine::CreateStreams: couldn't create the input stream");
@@ -273,11 +277,11 @@ bool	AREngine::CreateStreams(IOAudioSampleRate* outInitialSampleRate, UInt32* ou
 		//	allocate and initialize the output stream
 		if(theNumberStreams > 1)
 		{
-			sprintf(theOutputStreamName, "Output Stream #%ld", theStreamNumber + 1);
+			snprintf(theOutputStreamName, 32, "Output Stream #%ld", theStreamNumber + 1);
 		}
 		else
 		{
-			sprintf(theOutputStreamName, "Output Stream");
+			snprintf(theOutputStreamName, 32, "Output Stream");
 		}
 		theOutputStream = new IOAudioStream;
 		FailIfNULLWithAction(theOutputStream, theAnswer = false, Error, "AREngine::CreateStreams: couldn't create the output stream");
@@ -435,11 +439,11 @@ void	AREngine::CreateControls(UInt32 inNumberChannels)
 		char theChannelName[32];
 		if(theChannelID > 0)
 		{
-			sprintf(theChannelName, "Channel %lu", theChannelID);
+			snprintf(theChannelName, 32, "Channel %lu", theChannelID);
 		}
 		else
 		{
-			strcpy(theChannelName, kIOAudioControlChannelNameAll);
+			strncpy(theChannelName, kIOAudioControlChannelNameAll, 32);
 		}
 		
 		//	clock source selector
@@ -526,7 +530,7 @@ void	AREngine::CreateControls(UInt32 inNumberChannels)
 				theSelectorControl = NULL;
 			}
 		}
-
+		
 		//	input volume
 		theControl = IOAudioLevelControl::createVolumeControl(65535, 0, 65535, (-22 << 16) + (32768), 0, theChannelID, theChannelName, 0, kIOAudioControlUsageInput);
 		if(theControl != NULL)
@@ -645,6 +649,19 @@ void	AREngine::CreateControls(UInt32 inNumberChannels)
 			}
 		}
 
+		//	play through stereo pan
+		if((inNumberChannels > 2) && (theChannelID != 0))
+		{
+			theControl = ARStereoPanControl::create(0, -128, 0, 128, 1, 2, theChannelID, theChannelName, 0, ARStereoPanControl::kIOAudioControlSubTypeStereoPan, kIOAudioControlUsagePassThru);
+			if(theControl != NULL)
+			{
+				theControl->setValueChangeHandler((IOAudioControl::IntValueChangeHandler)IntegerControlChangeHandler, this);
+				addDefaultAudioControl(theControl);
+				theControl->release();
+				theControl = NULL;
+			}
+		}
+
 		//	LFE volume
 		if(theChannelID == 0)
 		{
@@ -701,7 +718,13 @@ IOReturn	AREngine::performAudioEngineStop()
 
 UInt32	AREngine::getCurrentSampleFrame()
 {
-	return mCurrentBlock * mBlockSize;
+	//	this keeps the the erase head one full block behind
+	UInt32 theAnswer = mCurrentBlock * mBlockSize;
+	if(mCurrentBlock != 0)
+	{
+		theAnswer -= 1;
+	}
+	return theAnswer;
 }
 
 IOReturn	AREngine::performFormatChange(IOAudioStream* inStream, const IOAudioStreamFormat* inNewFormat, const IOAudioSampleRate* inNewSampleRate)
@@ -771,6 +794,18 @@ void	AREngine::TimerFired(OSObject* inTarget, IOTimerEventSource* inSender)
 	AREngine* theEngine = OSDynamicCast(AREngine, inTarget);
 	if(theEngine != NULL)
 	{
+		//	Important Note!
+		//
+		//	This timer code executes on a normal kernel work loop, which is generally a priority 80
+		//	thread. When the system is idle, this isn't a problem. However, when the system starts
+		//	to get busy, this timer can go off so late that more than one block's worth of time has
+		//	gone by. This will cause the device to slowly drift offf of the proper time and will
+		//	cause the erase head to erase too much too soon resulting in gaps in the reflected data.
+		//	The proper way to fix this would involve keeping track of the amount of time between
+		//	timers firing and use that to account for the proper number of blocks, being sure to
+		//	account for the rate scalar set on the time stamp generator. This is left as an exercise
+		//	for the reader.
+	
 		//	go to the next block
 		theEngine->mCurrentBlock += 1;
 		
