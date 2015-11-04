@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_IOProcList.h
-
-==================================================================================================*/
 #if !defined(__HP_IOProcList_h__)
 #define __HP_IOProcList_h__
 
@@ -83,13 +79,14 @@ class HP_IOProc
 
 //	Construction/Destruction
 public:
-							HP_IOProc(HP_Device* inDevice, AudioDeviceIOProc inIOProc, void* inClientData, bool inClientDataIsRelevant, UInt32 inIOBufferSetID, bool inUseIOBuffers);
+							HP_IOProc(HP_Device* inDevice, AudioDeviceIOProc inIOProc, void* inClientData, bool inClientDataIsRelevant, UInt32 inIOBufferSetID, bool inAllocateBuffers, bool inUseIOBuffers);
 							HP_IOProc(const HP_IOProc& inIOProc);
 							~HP_IOProc();
 	HP_IOProc&				operator=(const HP_IOProc& inIOProc);
 
 //  Attributes
 public:
+	bool					IsSameIOProcID(AudioDeviceIOProcID inIOProcID) const	{ return mClientDataIsRelevant ? (inIOProcID == reinterpret_cast<AudioDeviceIOProcID>(this)) : (inIOProcID == mIOProc); }
 	AudioDeviceIOProc		GetIOProc() const { return mIOProc; }
 	void*					GetClientData() const { return mClientData; }
 	bool					IsClientDataRelevant() const { return mClientDataIsRelevant; }
@@ -104,6 +101,7 @@ public:
 	void					GetIOBufferActualDataSize(bool inIsInput, UInt32 inStreamIndex, UInt32& outActualDataByteSize, UInt32& outActualDataFrameSize) const;
 	void					SetIOBufferActualDataSize(bool inIsInput, UInt32 inStreamIndex, UInt32 inActualDataByteSize, UInt32 inActualDataFrameSize);
 
+	bool					IsAnyStreamEnabled(bool inIsInput) const;
 	bool					IsStreamEnabled(bool inIsInput, UInt32 inStreamIndex) const;
 	const HP_StreamUsage&   GetStreamUsage(bool inIsInput) const	{ return inIsInput ? mInputStreamUsage : mOutputStreamUsage; }
 	void					GetStreamUsage(bool inIsInput, UInt32 inNumberStreams, bool outStreamUsage[]) const;
@@ -111,6 +109,9 @@ public:
 
 //  Operations
 public:
+	void					AllocateBufferLists();
+	void					DeallocateBufferLists();
+	void					ReallocateBufferLists();
 	void					AllocateBufferList(bool inIsInput);
 	void					RefreshBufferList(bool inIsInput);
 	void					FreeBufferList(bool inIsInput);
@@ -137,6 +138,7 @@ private:
 	void*					mClientData;
 	bool					mClientDataIsRelevant;
 	UInt32					mIOBufferSetID;
+	bool					mAllocateBuffers;
 	bool					mUseIOBuffers;
 	bool					mIsEnabled;
 	AudioTimeStamp			mStartTime;
@@ -202,8 +204,6 @@ private:
 public:
 	void					GetIOProcStreamUsage(AudioDeviceIOProcID inIOProcID, bool inIsInput, UInt32 inNumberStreams, bool outStreamUsage[]) const;
 	void					SetIOProcStreamUsage(AudioDeviceIOProcID inIOProcID, bool inIsInput, UInt32 inNumberStreams, const bool inStreamUsage[]);
-
-private:
 	void					GetIOProcStreamUsageUnion(bool inIsInput, HP_StreamUsage& outStreamUsage) const;
 	
 //  IO Buffer List Management

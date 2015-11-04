@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_HogMode.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -52,13 +47,20 @@
 
 //	Internal Includes
 #include "HP_Device.h"
+#include "HP_SystemInfo.h"
 
 //	PublicUtility Includes
+#include "CACFDistributedNotification.h"
 #include "CACFNumber.h"
-#include "CACFPreferences.h"
 #include "CACFString.h"
 #include "CADebugMacros.h"
 #include "CAException.h"
+
+#if HogMode_UseCFPrefs
+	#include "CACFPreferences.h"
+#else
+	#include "CASettingsStorage.h"
+#endif
 
 //	System Includes
 #include <CoreFoundation/CFNotificationCenter.h>
@@ -74,11 +76,9 @@ HP_HogMode::HP_HogMode(HP_Device* inDevice)
 	mPrefName(NULL),
 	mOwner(-2)
 {
+	pthread_once(&sStaticInitializer, StaticInitializer);
+	
 	//	get our token
-	if(sTokenMap == NULL)
-	{
-		sTokenMap = new CATokenMap<HP_HogMode>();
-	}
 	mToken = sTokenMap->MapObject(this);
 	
 	//	construct the name of the preference
@@ -89,19 +89,27 @@ HP_HogMode::HP_HogMode(HP_Device* inDevice)
 	CFStringAppend((CFMutableStringRef)mPrefName, theUID.GetCFString());
 	
 	//	sign up for notifications
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, (CFNotificationCallback)ChangeNotification, mPrefName, NULL, CFNotificationSuspensionBehaviorCoalesce);
-	
+	CACFDistributedNotification::AddObserver((const void*)mToken, (CFNotificationCallback)ChangeNotification, mPrefName, 0);
+}
+
+HP_HogMode::~HP_HogMode()
+{
+	CACFDistributedNotification::RemoveObserver((const void*)mToken, mPrefName);
+	CFRelease(mPrefName);
+	sTokenMap->UnmapObject(this);
+}
+
+void	HP_HogMode::Initialize()
+{
 	//  figure out if this is the master process
-	UInt32 isMaster = 0;
-	UInt32 theSize = sizeof(UInt32);
-	AudioHardwareGetProperty(kAudioHardwarePropertyProcessIsMaster, &theSize, &isMaster);
+	bool isMaster = HP_SystemInfo::IsCurrentProcessTheMaster();
 	
 	//	get the current hog mode value from the prefs
 	pid_t theHogModeOwner = GetOwnerFromPreference(true);
 	
 	//	if this process is the master, blow away the hog mode setting as nobody should have hog mode at this point
 	//	also blow the setting away if it is pointing at this process, as this process can't have hog mode at this point either
-	if((isMaster != 0) || (theHogModeOwner == CAProcess::GetPID()))
+	if((theHogModeOwner != -1) && (isMaster || (theHogModeOwner == CAProcess::GetPID())))
 	{
 		//	set the value on the disk
 		SetOwnerInPreference(-1);
@@ -111,12 +119,15 @@ HP_HogMode::HP_HogMode(HP_Device* inDevice)
 	}
 }
 
-HP_HogMode::~HP_HogMode()
+void	HP_HogMode::StaticInitializer()
 {
-	CFNotificationCenterRemoveObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, mPrefName, NULL);
-	CFRelease(mPrefName);
-	sTokenMap->UnmapObject(this);
+#if	!HogMode_UseCFPrefs
+	sSettingsStorage = new CASettingsStorage("/tmp/com.apple.audio.hogmode.plist", S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
+#endif	
+	sTokenMap = new CATokenMap<HP_HogMode>();
 }
+
+pthread_once_t	HP_HogMode::sStaticInitializer = PTHREAD_ONCE_INIT;
 
 pid_t	HP_HogMode::GetOwner() const
 {
@@ -202,6 +213,7 @@ pid_t	HP_HogMode::GetOwnerFromPreference(bool inSendNotifications) const
 {
 	pid_t theAnswer = -1;
 	
+#if HogMode_UseCFPrefs
 	//	get the preference
 	CFNumberRef theCFNumber = CACFPreferences::CopyNumberValue(mPrefName, false, true);
 	if(theCFNumber != NULL)
@@ -211,7 +223,12 @@ pid_t	HP_HogMode::GetOwnerFromPreference(bool inSendNotifications) const
 		CFNumberGetValue(theCFNumber, kCFNumberSInt32Type, &theOwner);
 		
 		//	make sure the process exists
-		if(CAProcess::ProcessExists(theOwner))
+		if(theOwner == -1)
+		{
+			//	hog mode is free
+			theAnswer = -1;
+		}
+		else if(CAProcess::ProcessExists(theOwner))
 		{
 			//	it does, so set the return value
 			theAnswer = theOwner;
@@ -227,13 +244,44 @@ pid_t	HP_HogMode::GetOwnerFromPreference(bool inSendNotifications) const
 				SendHogModeChangedNotification();
 			}
 		}
+		CFRelease(theCFNumber);
 	}
+#else
+	//	get the owner from the preference
+	SInt32 theOwner = -1;
+	sSettingsStorage->CopySInt32Value(mPrefName, theOwner, SInt32(-1));
+		
+	//	make sure the process exists
+	if(theOwner == -1)
+	{
+		//	hog mode is free
+		theAnswer = -1;
+	}
+	else if(CAProcess::ProcessExists(theOwner))
+	{
+		//	the process that owns hog mode exists
+		theAnswer = theOwner;
+	}
+	else
+	{
+		//	the process that owns hog mode doesn't exist, so delete the pref
+		theAnswer = -1;
+		SetOwnerInPreference((pid_t)-1);
+		
+		if(inSendNotifications)
+		{
+			//	signal that hog mode changed
+			SendHogModeChangedNotification();
+		}
+	}
+#endif
 	
 	return theAnswer;
 }
 
 void	HP_HogMode::SetOwnerInPreference(pid_t inOwner) const
 {
+#if HogMode_UseCFPrefs
 	if(inOwner != -1)
 	{
 		CACFNumber theNumber(static_cast<SInt32>(inOwner));
@@ -244,11 +292,30 @@ void	HP_HogMode::SetOwnerInPreference(pid_t inOwner) const
 		CACFPreferences::DeleteValue(mPrefName, false, true, true);
 	}
 	CACFPreferences::Synchronize(false, true, true);
+#else
+	if(inOwner != -1)
+	{
+		sSettingsStorage->SetSInt32Value(mPrefName, inOwner);
+	}
+	else
+	{
+		sSettingsStorage->RemoveValue(mPrefName);
+	}
+#endif
+}
+
+void	HP_HogMode::MarkPreferencesDirty()
+{
+#if HogMode_UseCFPrefs
+	CACFPreferences::MarkPrefsOutOfDate(false, true);
+#else
+	sSettingsStorage->ForceRefresh();
+#endif
 }
 
 void	HP_HogMode::SendHogModeChangedNotification() const
 {
-	CACFPreferences::SendNotification(mPrefName);
+	CACFDistributedNotification::PostNotification(mPrefName, NULL, true);
 }
 
 void	HP_HogMode::ChangeNotification(CFNotificationCenterRef /*inCenter*/, const void* inHogMode, CFStringRef /*inNotificationName*/, const void* /*inObject*/, CFDictionaryRef /*inUserInfo*/)
@@ -261,7 +328,7 @@ void	HP_HogMode::ChangeNotification(CFNotificationCenterRef /*inCenter*/, const 
 			if(theHogModeObject != NULL)
 			{
 				//	mark the prefs as dirty
-				CACFPreferences::MarkPrefsOutOfDate(false, true);
+				theHogModeObject->MarkPreferencesDirty();
 				
 				//	get the new owner
 				pid_t theNewOwner = theHogModeObject->GetOwnerFromPreference(false);
@@ -285,4 +352,7 @@ void	HP_HogMode::ChangeNotification(CFNotificationCenterRef /*inCenter*/, const 
 	}
 }
 
+#if	!HogMode_UseCFPrefs
+	CASettingsStorage*	HP_HogMode::sSettingsStorage = NULL;
+#endif	
 CATokenMap<HP_HogMode>*	HP_HogMode::sTokenMap = NULL;

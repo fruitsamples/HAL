@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_Control.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -93,7 +88,7 @@ void	HP_Control::Show() const
 	//  get the object's name
 	CAPropertyAddress theAddress(kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster);
 	CFStringRef theCFName = NULL;
-	UInt32 theSize = sizeof(CFStringRef);
+	UInt32 theSize = SizeOf32(CFStringRef);
 	try
 	{
 		GetPropertyData(theAddress, 0, NULL, theSize, &theCFName);
@@ -120,20 +115,20 @@ void	HP_Control::Show() const
 	switch(GetPropertyScope())
 	{
 		case kAudioDevicePropertyScopeInput:
-			theScope = "Input";
+			theScope = (char*)"Input";
 			break;
 		
 		case kAudioDevicePropertyScopeOutput:
-			theScope = "Output";
+			theScope = (char*)"Output";
 			break;
 		
 		case kAudioDevicePropertyScopePlayThrough:
-			theScope = "Play Through";
+			theScope = (char*)"Play Through";
 			break;
 		
 		case kAudioObjectPropertyScopeGlobal:
 		default:
-			theScope = "Global";
+			theScope = (char*)"Global";
 			break;
 	};
 	
@@ -255,23 +250,23 @@ UInt32	HP_Control::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddre
 	switch(inAddress.mSelector)
 	{
 		case kAudioObjectPropertyName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyManufacturer:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioControlPropertyScope:
-			theAnswer = sizeof(AudioObjectPropertyScope);
+			theAnswer = SizeOf32(AudioObjectPropertyScope);
 			break;
 			
 		case kAudioControlPropertyElement:
-			theAnswer = sizeof(AudioObjectPropertyElement);
+			theAnswer = SizeOf32(AudioObjectPropertyElement);
 			break;
 			
 		case kAudioControlPropertyVariant:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		default:
@@ -329,59 +324,109 @@ void	HP_Control::SetPropertyData(const AudioObjectPropertyAddress& inAddress, UI
 
 void	HP_Control::ValueChanged()
 {
-	CAPropertyAddressList theChangedProperties;
-	
-	//	get the primary value changed address and add it to the list
-	CAPropertyAddress theChangedAddress(mOwningDevice->GetPrimaryValueChangedPropertySelectorForControl(this), GetPropertyScope(), GetPropertyElement());
-	if(theChangedAddress.mSelector != 0)
-	{
-		theChangedProperties.AppendUniqueItem(theChangedAddress);
-	}
-	
-	//	get the secondary value changed address and add it to the list
-	theChangedAddress.mSelector = mOwningDevice->GetSecondaryValueChangedPropertySelectorForControl(this);
-	if(theChangedAddress.mSelector != 0)
-	{
-		theChangedProperties.AppendUniqueItem(theChangedAddress);
-	}
+	//	get the properties that have changed
+	CAPropertyAddressList theDeviceNotifications;
+	GetValueChangedDeviceNotifications(theDeviceNotifications);
 	
 	//	send the notifications
-	if(!theChangedProperties.IsEmpty())
-	{
-		UInt32 theNumberAddresses = theChangedProperties.GetNumberItems();
-		AudioObjectPropertyAddress* theAddresses = const_cast<AudioObjectPropertyAddress*>(theChangedProperties.GetItems());
-		
-		//	send the device notifications
-		mOwningDevice->PropertiesChanged(theNumberAddresses, theAddresses);
-		
-		//	send the stream notifications
-		HP_Stream* theStream = mOwningDevice->GetStreamByPropertyAddress(theAddresses[0], false);
-		if(theStream != NULL)
-		{
-			for(UInt32 theIndex = 0; theIndex < theNumberAddresses; ++theIndex)
-			{
-				theStream->ChangeDevicePropertyAddressIntoStreamPropertyAddress(theAddresses[theIndex]);
-			}
-			theStream->PropertiesChanged(theNumberAddresses, theAddresses);
-		}
-	}
+	SendNotifications(theDeviceNotifications);
 }
 
 void	HP_Control::RangeChanged()
 {
+	//	get the properties that have changed
+	CAPropertyAddressList theDeviceNotifications;
+	GetRangeChangedDeviceNotifications(theDeviceNotifications);
+	
+	//	send the notifications
+	SendNotifications(theDeviceNotifications);
+}
+
+void	HP_Control::GetValueChangedDeviceNotifications(CAPropertyAddressList& outDeviceNotifications)
+{
+	//	clear out the list
+	outDeviceNotifications.EraseAllItems();
+	
 	//	get the primary value changed address and add it to the list
-	CAPropertyAddress theChangedAddress(mOwningDevice->GetRangeChangedPropertySelectorForControl(this), GetPropertyScope(), GetPropertyElement());
+	CAPropertyAddress theChangedAddress(mOwningDevice->GetPrimaryValueChangedPropertySelectorForControl(this), mOwningDevice->GetPrimaryValueChangedPropertyScopeForControl(this), GetPropertyElement());
 	if(theChangedAddress.mSelector != 0)
 	{
+		outDeviceNotifications.AppendUniqueItem(theChangedAddress);
+	}
+	
+	//	get the secondary value changed address and add it to the list
+	theChangedAddress.mSelector = mOwningDevice->GetSecondaryValueChangedPropertySelectorForControl(this);
+	theChangedAddress.mScope = mOwningDevice->GetSecondaryValueChangedPropertyScopeForControl(this);
+	if(theChangedAddress.mSelector != 0)
+	{
+		outDeviceNotifications.AppendUniqueItem(theChangedAddress);
+	}
+	
+	//	get the third value changed address and add it to the list
+	theChangedAddress.mSelector = mOwningDevice->GetThirdValueChangedPropertySelectorForControl(this);
+	theChangedAddress.mScope = mOwningDevice->GetThirdValueChangedPropertyScopeForControl(this);
+	if(theChangedAddress.mSelector != 0)
+	{
+		outDeviceNotifications.AppendUniqueItem(theChangedAddress);
+	}
+	
+	//	get the fourth value changed address and add it to the list
+	theChangedAddress.mSelector = mOwningDevice->GetFourthValueChangedPropertySelectorForControl(this);
+	theChangedAddress.mScope = mOwningDevice->GetFourthValueChangedPropertyScopeForControl(this);
+	if(theChangedAddress.mSelector != 0)
+	{
+		outDeviceNotifications.AppendUniqueItem(theChangedAddress);
+	}
+}
+
+void	HP_Control::GetRangeChangedDeviceNotifications(CAPropertyAddressList& outDeviceNotifications)
+{
+	//	clear out the list
+	outDeviceNotifications.EraseAllItems();
+	
+	//	get the primary range changed address and add it to the list
+	CAPropertyAddress theChangedAddress(mOwningDevice->GetPrimaryRangeChangedPropertySelectorForControl(this), mOwningDevice->GetPrimaryRangeChangedPropertyScopeForControl(this), GetPropertyElement());
+	if(theChangedAddress.mSelector != 0)
+	{
+		outDeviceNotifications.AppendUniqueItem(theChangedAddress);
+	}
+	
+	//	get the secondary range changed address and add it to the list
+	theChangedAddress.mSelector = mOwningDevice->GetSecondaryRangeChangedPropertySelectorForControl(this);
+	theChangedAddress.mScope = mOwningDevice->GetSecondaryRangeChangedPropertyScopeForControl(this);
+	if(theChangedAddress.mSelector != 0)
+	{
+		outDeviceNotifications.AppendUniqueItem(theChangedAddress);
+	}
+}
+
+void	HP_Control::SendNotifications(const CAPropertyAddressList& inDeviceNotifications)
+{
+	//	It is presumed that inDeviceNotifications only contains notifications relating to this
+	//	control. If it is otherwise, it will yield unpredictable results.
+
+	UInt32 theNumberAddresses = inDeviceNotifications.GetNumberItems();
+	if(theNumberAddresses > 0)
+	{
 		//	send the device notifications
-		mOwningDevice->PropertiesChanged(1, &theChangedAddress);
+		mOwningDevice->PropertiesChanged(theNumberAddresses, inDeviceNotifications.GetItems());
 		
-		//	send the stream notifications
-		HP_Stream* theStream = mOwningDevice->GetStreamByPropertyAddress(theChangedAddress, false);
+		//	duplicate the address list so it can be modified
+		CAPropertyAddressList theStreamNotifications(inDeviceNotifications);
+		AudioObjectPropertyAddress* theStreamNotificationAddresses = theStreamNotifications.GetItems();
+			
+		//	get the stream associated with this control
+		HP_Stream* theStream = mOwningDevice->GetStreamByPropertyAddress(theStreamNotificationAddresses[0], false);
 		if(theStream != NULL)
 		{
-			theStream->ChangeDevicePropertyAddressIntoStreamPropertyAddress(theChangedAddress);
-			theStream->PropertiesChanged(1, &theChangedAddress);
+			//	change the device notifications into stream notifications
+			for(UInt32 theIndex = 0; theIndex < theNumberAddresses; ++theIndex)
+			{
+				theStream->ChangeDevicePropertyAddressIntoStreamPropertyAddress(theStreamNotificationAddresses[theIndex]);
+			}
+			
+			//	send the stream notifications
+			theStream->PropertiesChanged(theNumberAddresses, theStreamNotificationAddresses);
 		}
 	}
 }
@@ -482,23 +527,23 @@ UInt32	HP_LevelControl::GetPropertyDataSize(const AudioObjectPropertyAddress& in
 	switch(inAddress.mSelector)
 	{
 		case kAudioLevelControlPropertyScalarValue:
-			theAnswer = sizeof(Float32);
+			theAnswer = SizeOf32(Float32);
 			break;
 		
 		case kAudioLevelControlPropertyDecibelValue:
-			theAnswer = sizeof(Float32);
+			theAnswer = SizeOf32(Float32);
 			break;
 		
 		case kAudioLevelControlPropertyDecibelRange:
-			theAnswer = sizeof(AudioValueRange);
+			theAnswer = SizeOf32(AudioValueRange);
 			break;
 		
 		case kAudioLevelControlPropertyConvertScalarToDecibels:
-			theAnswer = sizeof(Float32);
+			theAnswer = SizeOf32(Float32);
 			break;
 		
 		case kAudioLevelControlPropertyConvertDecibelsToScalar:
-			theAnswer = sizeof(Float32);
+			theAnswer = SizeOf32(Float32);
 			break;
 		
 		default:
@@ -630,7 +675,7 @@ UInt32	HP_BooleanControl::GetPropertyDataSize(const AudioObjectPropertyAddress& 
 	switch(inAddress.mSelector)
 	{
 		case kAudioBooleanControlPropertyValue:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 		
 		default:
@@ -760,19 +805,19 @@ UInt32	HP_SelectorControl::GetPropertyDataSize(const AudioObjectPropertyAddress&
 	switch(inAddress.mSelector)
 	{
 		case kAudioSelectorControlPropertyCurrentItem:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioSelectorControlPropertyAvailableItems:
-			theAnswer = GetNumberItems() * sizeof(UInt32);
+			theAnswer = GetNumberItems() * SizeOf32(UInt32);
 			break;
 			
 		case kAudioSelectorControlPropertyItemName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 		
 		case kAudioClockSourceControlPropertyItemKind:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		default:
@@ -794,13 +839,13 @@ void	HP_SelectorControl::GetPropertyData(const AudioObjectPropertyAddress& inAdd
 		
 		case kAudioSelectorControlPropertyAvailableItems:
 			{
-				UInt32 theNumberItemsToGet = std::min((UInt32)(ioDataSize / sizeof(UInt32)), GetNumberItems());
+				UInt32 theNumberItemsToGet = std::min((UInt32)(ioDataSize / SizeOf32(UInt32)), GetNumberItems());
 				UInt32* theItemIDs = static_cast<UInt32*>(outData);
 				for(UInt32 theIndex = 0; theIndex < theNumberItemsToGet; ++theIndex)
 				{
 					theItemIDs[theIndex] = GetItemIDForIndex(theIndex);
 				}
-				ioDataSize = theNumberItemsToGet * sizeof(UInt32);
+				ioDataSize = theNumberItemsToGet * SizeOf32(UInt32);
 			}
 			break;
 		
@@ -910,11 +955,11 @@ UInt32	HP_StereoPanControl::GetPropertyDataSize(const AudioObjectPropertyAddress
 	switch(inAddress.mSelector)
 	{
 		case kAudioStereoPanControlPropertyValue:
-			theAnswer = sizeof(Float32);
+			theAnswer = SizeOf32(Float32);
 			break;
 			
 		case kAudioStereoPanControlPropertyPanningChannels:
-			theAnswer = 2 * sizeof(UInt32);
+			theAnswer = 2 * SizeOf32(UInt32);
 			break;
 			
 		default:
@@ -950,7 +995,7 @@ void	HP_StereoPanControl::SetPropertyData(const AudioObjectPropertyAddress& inAd
 	switch(inAddress.mSelector)
 	{
 		case kAudioStereoPanControlPropertyValue:
-			ThrowIf(inDataSize != GetPropertyDataSize(inAddress, inQualifierDataSize, inQualifierData), CAException(kAudioHardwareBadPropertySizeError), "HP_StereoPanControl::GetPropertyData: wrong data size for kAudioStereoPanControlPropertyValue");
+			ThrowIf(inDataSize != GetPropertyDataSize(inAddress, inQualifierDataSize, inQualifierData), CAException(kAudioHardwareBadPropertySizeError), "HP_StereoPanControl::SetPropertyData: wrong data size for kAudioStereoPanControlPropertyValue");
 			SetValue(*static_cast<const Float32*>(inData));
 			break;
 		
@@ -1037,7 +1082,7 @@ UInt32	HP_DeviceControlProperty::GetPropertyDataSize(const AudioObjectPropertyAd
 			case kAudioDevicePropertyPlayThruDestinationNameForID:
 			case kAudioDevicePropertyChannelNominalLineLevelNameForIDCFString:
 			case kAudioDevicePropertyChannelNominalLineLevelNameForID:
-				theAnswer = sizeof(AudioValueTranslation);
+				theAnswer = SizeOf32(AudioValueTranslation);
 				break;
 			
 			default:
@@ -1085,8 +1130,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemNamePtr = static_cast<CFStringRef*>(theTranslationData->mOutputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
 				}
 				break;
 				
@@ -1105,8 +1150,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemIDPtr = static_cast<UInt32*>(theTranslationData->mInputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
 					
 					//	get the return value
 					if(theItemName != NULL)
@@ -1133,8 +1178,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemNamePtr = static_cast<CFStringRef*>(theTranslationData->mOutputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
 				}
 				break;
 				
@@ -1153,8 +1198,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemIDPtr = static_cast<UInt32*>(theTranslationData->mInputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
 					
 					//	get the return value
 					if(theItemName != NULL)
@@ -1181,8 +1226,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemKindPtr = static_cast<UInt32*>(theTranslationData->mOutputData);
 					
 					//	get the info from the control
-					theItemKindSize = sizeof(UInt32);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemKindSize, theItemNamePtr);
+					theItemKindSize = SizeOf32(UInt32);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemKindSize, theItemNamePtr);
 				}
 				break;
 				
@@ -1203,8 +1248,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemNamePtr = static_cast<CFStringRef*>(theTranslationData->mOutputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
 				}
 				break;
 				
@@ -1223,8 +1268,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemIDPtr = static_cast<UInt32*>(theTranslationData->mInputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
 					
 					//	get the return value
 					if(theItemName != NULL)
@@ -1251,8 +1296,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemNamePtr = static_cast<CFStringRef*>(theTranslationData->mOutputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, theItemNamePtr);
 				}
 				break;
 				
@@ -1271,8 +1316,8 @@ void	HP_DeviceControlProperty::GetPropertyData(const AudioObjectPropertyAddress&
 					theItemIDPtr = static_cast<UInt32*>(theTranslationData->mInputData);
 					
 					//	get the info from the control
-					theItemNameSize = sizeof(CFStringRef);
-					theControl->GetPropertyData(theControlAddress, sizeof(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
+					theItemNameSize = SizeOf32(CFStringRef);
+					theControl->GetPropertyData(theControlAddress, SizeOf32(UInt32), theItemIDPtr, theItemNameSize, &theItemName);
 					
 					//	get the return value
 					if(theItemName != NULL)

@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_SystemInfo.h
-
-==================================================================================================*/
 #if !defined(__HP_SystemInfo_h__)
 #define __HP_SystemInfo_h__
 
@@ -66,9 +62,12 @@ public:
 
 //	Operations
 public:
+	static bool		IsCurrentProcessTheMaster();
+	static bool		IsCurrentProcessInitingOrExiting();
 	static bool		IsCurrentProcessDoingIO() { return sCurrentUserSessionIsActiveOrHeadless && sCurrentProcessIsAudible; }
 	static bool		IsCurrentUserSessionActiveOrHeadless() { return sCurrentUserSessionIsActiveOrHeadless; }
 	static bool		IsCurrentProcessAudible() { return sCurrentProcessIsAudible; }
+	static bool		IsMixingStereoToMono() { return sIsMixingStereoToMono; }
 
 //	Implementation
 private:
@@ -77,6 +76,7 @@ private:
 	static bool		sIsInitialized;
 	static bool		sCurrentUserSessionIsActiveOrHeadless;
 	static bool		sCurrentProcessIsAudible;
+	static bool		sIsMixingStereoToMono;
 	
 };
 

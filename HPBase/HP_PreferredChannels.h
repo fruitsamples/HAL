@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_PreferredChannels.h
-
-==================================================================================================*/
 #if !defined(__HP_PreferredChannels_h__)
 #define __HP_PreferredChannels_h__
 
@@ -81,6 +77,7 @@ public:
 	virtual void		Initialize();
 	virtual void		Teardown();
 
+	UInt32*				OutputStereoPair() { return mOutputStereoPair; }
 //	Operations
 public:
 	virtual bool		IsActive(const AudioObjectPropertyAddress& inAddress) const;
@@ -88,6 +85,8 @@ public:
 	virtual UInt32		GetPropertyDataSize(const AudioObjectPropertyAddress& inAddress, UInt32 inQualifierDataSize, const void* inQualifierData) const;
 	virtual void		GetPropertyData(const AudioObjectPropertyAddress& inAddress, UInt32 inQualifierDataSize, const void* inQualifierData, UInt32& ioDataSize, void* outData) const;
 	virtual void		SetPropertyData(const AudioObjectPropertyAddress& inAddress, UInt32 inQualifierDataSize, const void* inQualifierData, UInt32 inDataSize, const void* inData, const AudioTimeStamp* inWhen);
+	
+	virtual void		ClearPrefs();
 
 	virtual UInt32		GetNumberAddressesImplemented() const;
 	virtual void		GetImplementedAddressByIndex(UInt32 inIndex, AudioObjectPropertyAddress& outAddress) const;
@@ -103,6 +102,11 @@ private:
 	CFStringRef			mOutputStereoPrefsKey;
 	CFStringRef			mInputChannelLayoutPrefsKey;
 	CFStringRef			mOutputChannelLayoutPrefsKey;
+	CFArrayRef			mPreferredInputStereoChannels;
+	CFArrayRef			mPreferredOutputStereoChannels;
+	UInt32				mOutputStereoPair[2];
+	CFDictionaryRef		mPreferredInputChannelLayout;
+	CFDictionaryRef		mPreferredOutputChannelLayout;
 	
 	static CATokenMap<HP_PreferredChannels>*	sTokenMap;
 

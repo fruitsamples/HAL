@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_TelemetryServer.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -186,14 +181,14 @@ CFDataRef	HP_TelemetryServer::GetTelemetryProperty(const CACFDictionary& inMessa
 		switch(thePropertyID)
 		{
 			case kHALTelemetryPropertyIsCapturing:
-				theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryPropertyValueKey), (mIsCapturing ? 1L : 0L));
+				theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryPropertyValueKey), (mIsCapturing ? 1 : 0));
 				break;
 			
 			case kHALTelemetryPropertyEndianness:
 				#if	TARGET_RT_BIG_ENDIAN
-					theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryPropertyValueKey), 1L);
+					theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryPropertyValueKey), 1);
 				#else
-					theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryPropertyValueKey), 0L);
+					theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryPropertyValueKey), 0);
 				#endif
 				break;
 			
@@ -204,7 +199,7 @@ CFDataRef	HP_TelemetryServer::GetTelemetryProperty(const CACFDictionary& inMessa
 		};
 		
 		//	add the return error to the return value
-		theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryReturnErrorKey), 0L);
+		theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryReturnErrorKey), 0);
 	}
 	catch(const CAException& inException)
 	{
@@ -270,7 +265,7 @@ CFDataRef	HP_TelemetryServer::SetTelemetryProperty(const CACFDictionary& inMessa
 		};
 		
 		//	add the return error to the return value
-		theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryReturnErrorKey), 0L);
+		theReturnValue.AddUInt32(CFSTR(kHALIOCycleTelemetryReturnErrorKey), 0);
 	}
 	catch(const CAException& inException)
 	{

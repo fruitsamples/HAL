@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_Stream.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -184,7 +179,7 @@ bool	HP_Stream::HasProperty(const AudioObjectPropertyAddress& inAddress) const
 	CFStringRef theCFString = NULL;
 	
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetStateMutex());
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -262,7 +257,7 @@ bool	HP_Stream::IsPropertySettable(const AudioObjectPropertyAddress& inAddress) 
 	bool theAnswer = false;
 	
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetStateMutex());
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -315,44 +310,44 @@ UInt32	HP_Stream::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 	UInt32 theAnswer = 0;
 	
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetStateMutex());
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
 		case kAudioObjectPropertyName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyManufacturer:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyElementName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyElementCategoryName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyElementNumberName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioStreamPropertyDirection:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioStreamPropertyTerminalType:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioStreamPropertyStartingChannel:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioStreamPropertyLatency:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		default:
@@ -366,7 +361,7 @@ UInt32	HP_Stream::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 void	HP_Stream::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UInt32 inQualifierDataSize, const void* inQualifierData, UInt32& ioDataSize, void* outData) const
 {
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetStateMutex());
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(mOwningDevice)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -424,7 +419,7 @@ void	HP_Stream::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 void	HP_Stream::SetPropertyData(const AudioObjectPropertyAddress& inAddress, UInt32 inQualifierDataSize, const void* inQualifierData, UInt32 inDataSize, const void* inData, const AudioTimeStamp* inWhen)
 {
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(mOwningDevice->GetStateMutex());
+	CAMutex::Locker theStateMutex(mOwningDevice->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -468,7 +463,7 @@ void	HP_Stream::Show() const
 	//  get the object's name
 	CAPropertyAddress theAddress(kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster);
 	CFStringRef theCFName = NULL;
-	UInt32 theSize = sizeof(CFStringRef);
+	UInt32 theSize = SizeOf32(CFStringRef);
 	try
 	{
 		GetPropertyData(theAddress, 0, NULL, theSize, &theCFName);
@@ -504,5 +499,7 @@ void	HP_Stream::UnregisterIOBuffer(UInt32 /*inBufferSetID*/, UInt32 /*inBufferBy
 
 bool	HP_Stream::TellHardwareToSetPhysicalFormat(const AudioStreamBasicDescription& /*inFormat*/)
 {
+	//	This method should do what it's name says and return true if the change took effect immediately.
+	//	Otherwise if the change will take effect asynchronously, this method should return fals.
 	return true;
 }

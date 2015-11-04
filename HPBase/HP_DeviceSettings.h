@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_DeviceSettings.h
-
-==================================================================================================*/
 #if !defined(__HP_DeviceSettings_h__)
 #define __HP_DeviceSettings_h__
 

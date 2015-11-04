@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_DeviceSettings.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -271,7 +266,7 @@ void	HP_DeviceSettings::SaveToPrefs(const HP_Device& inDevice, const HP_DeviceSe
 	{
 		//	get the length of the file
 		fseek(thePrefsFile, 0, SEEK_END);
-		UInt32 theFileLength = ftell(thePrefsFile);
+		UInt32 theFileLength = ToUInt32(ftell(thePrefsFile));
 		fseek(thePrefsFile, 0, SEEK_SET);
 		
 		if(theFileLength > 0)
@@ -474,7 +469,7 @@ static void	HP_DeviceSettings_RestoreStreamSettings(HP_Device& inDevice, const C
 				
 				//	tell the stream about the format
 				CAPropertyAddress theAddress(kAudioStreamPropertyPhysicalFormat);
-				UInt32 theSize = sizeof(AudioStreamBasicDescription);
+				UInt32 theSize = SizeOf32(AudioStreamBasicDescription);
 				try
 				{
 					if(theStream->HasProperty(theAddress))
@@ -494,7 +489,7 @@ void	HP_DeviceSettings::RestoreFromPrefs(HP_Device& inDevice, const HP_DeviceSet
 {
 	//	Take and hold the device's state guard while we do this to prevent notifications from
 	//	interupting the full completion of this routine.
-	CAMutex::Locker theDeviceStateMutex(inDevice.GetStateMutex());
+	CAMutex::Locker theDeviceStateMutex(inDevice.GetDeviceStateMutex());
 	
 	#if	Log_SaveRestoreFromPrefs
 		CACFString theDeviceName(inDevice.CopyDeviceName());
@@ -530,7 +525,7 @@ void	HP_DeviceSettings::RestoreFromPrefs(HP_Device& inDevice, const HP_DeviceSet
 		{
 			//	get the length of the file
 			fseek(thePrefsFile, 0, SEEK_END);
-			UInt32 theFileLength = ftell(thePrefsFile);
+			UInt32 theFileLength = ToUInt32(ftell(thePrefsFile));
 			fseek(thePrefsFile, 0, SEEK_SET);
 			
 			if(theFileLength > 0)
@@ -602,7 +597,7 @@ void	HP_DeviceSettings::RestoreFromDictionary(HP_Device& inDevice, const CFDicti
 	{
 		//	Take and hold the device's state guard while we do this to prevent notifications from
 		//	interupting the full completion of this routine.
-		CAMutex::Locker theDeviceStateMutex(inDevice.GetStateMutex());
+		CAMutex::Locker theDeviceStateMutex(inDevice.GetDeviceStateMutex());
 	
 		CACFDictionary theSettings(inDictionary, false);
 		

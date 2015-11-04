@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_IOCycleTelemetry.h
-
-==================================================================================================*/
 #if !defined(__HP_IOCycleTelemetry_h__)
 #define __HP_IOCycleTelemetry_h__
 
@@ -144,6 +140,8 @@ public:
 	void					FormatChangeEnd(UInt32 inIOCycleNumber) { if(mIsCapturing){ SaveTelemetryItem(kHALIOCycleTelemetryEventFormatChangeEnd, inIOCycleNumber, 0, 0, 0, 0, 0, 0, 0, kHALIOCycleTelemetryFlagNoneIsValid); } }
 	void					MajorEngineChangeBegin(UInt32 inIOCycleNumber) { if(mIsCapturing){ SaveTelemetryItem(kHALIOCycleTelemetryEventMajorEngineChangeBegin, inIOCycleNumber, 0, 0, 0, 0, 0, 0, 0, kHALIOCycleTelemetryFlagNoneIsValid); } }
 	void					MajorEngineChangeEnd(UInt32 inIOCycleNumber) { if(mIsCapturing){ SaveTelemetryItem(kHALIOCycleTelemetryEventMajorEngineChangeEnd, inIOCycleNumber, 0, 0, 0, 0, 0, 0, 0, kHALIOCycleTelemetryFlagNoneIsValid); } }
+	void					IOBufferSizeChangeBegin(UInt32 inIOCycleNumber, Float64 inNewBufferSize) { if(mIsCapturing){ SaveTelemetryItem(kHALIOCycleTelemetryEventBufferSizeChangeBegin, inIOCycleNumber, 0, 0, inNewBufferSize, 0, 0, 0, 0, kHALIOCycleTelemetryFlagSampleTime1IsValid); } }
+	void					IOBufferSizeChangeEnd(UInt32 inIOCycleNumber) { if(mIsCapturing){ SaveTelemetryItem(kHALIOCycleTelemetryEventBufferSizeChangeEnd, inIOCycleNumber, 0, 0, 0, 0, 0, 0, 0, kHALIOCycleTelemetryFlagNoneIsValid); } }
 
 //	Implementation
 protected:

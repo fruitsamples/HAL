@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_IOProcList.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -52,7 +47,11 @@
 
 //  Internal Includes
 #include "HP_Device.h"
-#include "HP_IOCycleTelemetry.h"
+#if Use_HAL_Telemetry
+	#include "HP_IOCycleTelemetry.h"
+#else
+	#include "HALdtrace.h"
+#endif
 #include "HP_Stream.h"
 #include "HP_SystemInfo.h"
 
@@ -73,13 +72,14 @@
 //	HP_IOProc
 //==================================================================================================
 
-HP_IOProc::HP_IOProc(HP_Device* inDevice, AudioDeviceIOProc inIOProc, void* inClientData, bool inClientDataIsRelevant, UInt32 inIOBufferSetID, bool inUseIOBuffers)
+HP_IOProc::HP_IOProc(HP_Device* inDevice, AudioDeviceIOProc inIOProc, void* inClientData, bool inClientDataIsRelevant, UInt32 inIOBufferSetID, bool inAllocateBuffers, bool inUseIOBuffers)
 :
 	mDevice(inDevice),
 	mIOProc(inIOProc),
 	mClientData(inClientData),
 	mClientDataIsRelevant(inClientDataIsRelevant),
 	mIOBufferSetID(inIOBufferSetID),
+	mAllocateBuffers(inAllocateBuffers),
 	mUseIOBuffers(inUseIOBuffers),
 	mIsEnabled(false),
 	mStartTime(CAAudioTimeStamp::kZero),
@@ -100,6 +100,7 @@ HP_IOProc::HP_IOProc(const HP_IOProc& inIOProc)
 	mClientData(inIOProc.mClientData),
 	mClientDataIsRelevant(inIOProc.mClientDataIsRelevant),
 	mIOBufferSetID(inIOProc.mIOBufferSetID),
+	mAllocateBuffers(inIOProc.mAllocateBuffers),
 	mUseIOBuffers(inIOProc.mUseIOBuffers),
 	mIsEnabled(inIOProc.mIsEnabled),
 	mStartTime(inIOProc.mStartTime),
@@ -123,6 +124,7 @@ HP_IOProc&  HP_IOProc::operator=(const HP_IOProc& inIOProc)
 	mIOProc = inIOProc.mIOProc;
 	mClientData = inIOProc.mClientData;
 	mIOBufferSetID = inIOProc.mIOBufferSetID;
+	mAllocateBuffers = inIOProc.mAllocateBuffers;
 	mUseIOBuffers = inIOProc.mUseIOBuffers;
 	mIsEnabled = inIOProc.mIsEnabled;
 	mStartTime = inIOProc.mStartTime;
@@ -215,6 +217,36 @@ void	HP_IOProc::SetIOBufferActualDataSize(bool inIsInput, UInt32 inStreamIndex, 
 	}
 }
 
+bool	HP_IOProc::IsAnyStreamEnabled(bool inIsInput) const
+{
+	bool theAnswer = false;
+	
+	//  figure out which section's stream usage is involved
+	const HP_StreamUsage& theStreamUsage = GetStreamUsage(inIsInput);
+	
+	//	get the number of streams
+	UInt32 theNumberStreams = mDevice->GetNumberStreams(inIsInput);
+	
+	//  find out if the stream is enabled
+	if(theNumberStreams <= theStreamUsage.size())
+	{
+		UInt32 theStreamIndex = 0;
+		while(!theAnswer && (theStreamIndex < theStreamUsage.size()))
+		{
+			theAnswer = theStreamUsage.at(theStreamIndex);
+			++theStreamIndex;
+		}
+	}
+	else
+	{
+		//	there are more streams than this IOProc has info about
+		//	by definition the streams the IOProc doesn't know about are enabled
+		theAnswer = true;
+	}
+	
+	return theAnswer;
+}
+
 bool	HP_IOProc::IsStreamEnabled(bool inIsInput, UInt32 inStreamIndex) const
 {
 	bool theAnswer = true;
@@ -281,17 +313,39 @@ void	HP_IOProc::SetStreamUsage(bool inIsInput, UInt32 inNumberStreams, const boo
 	}
 }
 
+void	HP_IOProc::AllocateBufferLists()
+{
+	AllocateBufferList(true);
+	AllocateBufferList(false);
+}
+
+void	HP_IOProc::DeallocateBufferLists()
+{
+	FreeBufferList(true);
+	AllocateBufferList(true);
+	FreeBufferList(false);
+	AllocateBufferList(false);
+}
+
+void	HP_IOProc::ReallocateBufferLists()
+{
+	FreeBufferList(true);
+	AllocateBufferList(true);
+	FreeBufferList(false);
+	AllocateBufferList(false);
+}
+
 void	HP_IOProc::AllocateBufferList(bool inIsInput)
 {
 	if(mIsEnabled)
 	{
 		if(inIsInput)
 		{
-			mInputAudioBufferList = AllocateBufferList(*mDevice, inIsInput, mInputStreamUsage, mIOBufferSetID, mInputIOBufferList, mUseIOBuffers, true);
+			mInputAudioBufferList = AllocateBufferList(*mDevice, inIsInput, mInputStreamUsage, mIOBufferSetID, mInputIOBufferList, mUseIOBuffers, mAllocateBuffers);
 		}
 		else
 		{
-			mOutputAudioBufferList = AllocateBufferList(*mDevice, inIsInput, mOutputStreamUsage, mIOBufferSetID, mOutputIOBufferList, mUseIOBuffers, true);
+			mOutputAudioBufferList = AllocateBufferList(*mDevice, inIsInput, mOutputStreamUsage, mIOBufferSetID, mOutputIOBufferList, mUseIOBuffers, mAllocateBuffers);
 		}
 	}
 }
@@ -401,13 +455,20 @@ void	HP_IOProc::Call(const AudioTimeStamp& inCurrentTime, const AudioTimeStamp& 
 	if(IsCallable(inInputTime, inOutputTime))
 	{
 		//	mark the telemetry
+#if Use_HAL_Telemetry
 		(mDevice->GetIOCycleTelemetry()).IOCycleIOProcCallBegin(mDevice->GetIOCycleNumber(), mIOProc);
-		
+#else
+		HAL_IOCYCLEIOPROCCALLBEGIN(mDevice->GetIOCycleNumber(), (uint64_t)mIOProc);
+#endif
 		//  call the IOProc
 		mIOProc(mDevice->GetObjectID(), &inCurrentTime, theInputBufferList, &inInputTime, theOutputBufferList, &inOutputTime, mClientData);
 		
 		//	mark the telemetry
+#if Use_HAL_Telemetry
 		(mDevice->GetIOCycleTelemetry()).IOCycleIOProcCallEnd(mDevice->GetIOCycleNumber());
+#else
+		HAL_IOCYCLEIOPROCCALLEND(mDevice->GetIOCycleNumber());
+#endif
 	}
 }
 
@@ -453,7 +514,7 @@ AudioBufferList*	HP_IOProc::AllocateBufferList(const HP_Device& inDevice, bool i
 		if(shouldAllocateBuffer && inAllocateBuffers)
 		{
 			//	figure out how much space to allocate, including the IOBuffer header
-			UInt32 theAllocationSize = offsetof(IOBuffer, mData) + theIOBufferByteSize + theIOBufferByteSizePad;
+			UInt32 theAllocationSize = OffsetOf32(IOBuffer, mData) + theIOBufferByteSize + theIOBufferByteSizePad;
 			IOBuffer* theIOBuffer = NULL;
 			
 			//  allocate using vm_allocate to ensure the memory is page aligned
@@ -570,7 +631,7 @@ void	HP_IOProc::FreeBufferList(const HP_Device& inDevice, bool inIsInput, UInt32
 				//  unregister the buffer with the stream
 				if(inUseIOBuffers)
 				{
-					theStream->UnregisterIOBuffer(inIOBufferSetID, offsetof(IOBuffer, mData) + theIOBuffer->mTotalDataByteSize, theIOBuffer);
+					theStream->UnregisterIOBuffer(inIOBufferSetID, OffsetOf32(IOBuffer, mData) + theIOBuffer->mTotalDataByteSize, theIOBuffer);
 				}
 				else
 				{
@@ -619,7 +680,7 @@ HP_IOProcList::~HP_IOProcList()
 
 UInt32	HP_IOProcList::GetNumberIOProcs() const
 {
-	return mIOProcList.size();
+	return ToUInt32(mIOProcList.size());
 }
 
 HP_IOProc*	HP_IOProcList::GetIOProcByIndex(UInt32 inIndex) const
@@ -744,7 +805,7 @@ bool	HP_IOProcList::HasIOProc(AudioDeviceIOProc inIOProc, void* inClientData, bo
 AudioDeviceIOProcID	HP_IOProcList::AddIOProc(AudioDeviceIOProc inIOProc, void* inClientData, bool inClientDataIsRelevant)
 {
 	//  make a new IOProc object
-	HP_IOProc* theIOProc = new HP_IOProc(mDevice, inIOProc, inClientData, inClientDataIsRelevant, mIOBufferSetID, mUseIOBuffers);
+	HP_IOProc* theIOProc = new HP_IOProc(mDevice, inIOProc, inClientData, inClientDataIsRelevant, mIOBufferSetID, true, mUseIOBuffers);
 	
 	//  add it to the list
 	mIOProcList.push_back(theIOProc);

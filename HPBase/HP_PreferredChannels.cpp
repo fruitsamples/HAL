@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_PreferredChannels.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -57,6 +52,7 @@
 #include "CAAudioChannelLayout.h"
 #include "CACFArray.h"
 #include "CACFDictionary.h"
+#include "CACFDistributedNotification.h"
 #include "CACFPreferences.h"
 #include "CACFString.h"
 #include "CADebugMacros.h"
@@ -181,7 +177,12 @@ HP_PreferredChannels::HP_PreferredChannels(HP_Device* inDevice)
 	mInputStereoPrefsKey(NULL),
 	mOutputStereoPrefsKey(NULL),
 	mInputChannelLayoutPrefsKey(NULL),
-	mOutputChannelLayoutPrefsKey(NULL)
+	mOutputChannelLayoutPrefsKey(NULL),
+	mPreferredInputStereoChannels(NULL),
+	mPreferredOutputStereoChannels(NULL),
+	mOutputStereoPair(),
+	mPreferredInputChannelLayout(NULL),
+	mPreferredOutputChannelLayout(NULL)
 {
 	//	get our token
 	if(sTokenMap == NULL)
@@ -213,19 +214,54 @@ void	HP_PreferredChannels::Initialize()
 	mOutputChannelLayoutPrefsKey = CFStringCreateWithFormat(NULL, NULL, CFSTR("com.apple.audio.CoreAudio.PreferredChannelLayout.%s.%@"), "Output", theUID.GetCFString());
 	ThrowIfNULL(mOutputChannelLayoutPrefsKey, CAException(kAudioHardwareIllegalOperationError), "HP_PreferredChannels::Initialize: couldn't create the output channel layout prefs key");
 	
+	//	cache the prefs
+	mPreferredInputStereoChannels = CACFPreferences::CopyArrayValue(mInputStereoPrefsKey, false, true);
+	mPreferredOutputStereoChannels = CACFPreferences::CopyArrayValue(mOutputStereoPrefsKey, false, true);
+	mPreferredInputChannelLayout = CACFPreferences::CopyDictionaryValue(mInputChannelLayoutPrefsKey, false, true);
+	mPreferredOutputChannelLayout = CACFPreferences::CopyDictionaryValue(mOutputChannelLayoutPrefsKey, false, true);
+	
+	//	cache the actual CFArray values for the output preferred stereo pair
+	CACFArray thePrefStereoChannels(mPreferredOutputStereoChannels, false);
+	if(thePrefStereoChannels.IsValid())
+	{
+		thePrefStereoChannels.GetUInt32(0, mOutputStereoPair[0]);
+		thePrefStereoChannels.GetUInt32(1, mOutputStereoPair[1]);
+	}
+	else
+	{
+		mOutputStereoPair[0] = 1;
+		mOutputStereoPair[1] = 2;
+	}
+	
 	//	sign up for notifications
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, (CFNotificationCallback)ChangeNotification, mInputStereoPrefsKey, NULL, CFNotificationSuspensionBehaviorCoalesce);
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, (CFNotificationCallback)ChangeNotification, mOutputStereoPrefsKey, NULL, CFNotificationSuspensionBehaviorCoalesce);
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, (CFNotificationCallback)ChangeNotification, mInputChannelLayoutPrefsKey, NULL, CFNotificationSuspensionBehaviorCoalesce);
-	CFNotificationCenterAddObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, (CFNotificationCallback)ChangeNotification, mOutputChannelLayoutPrefsKey, NULL, CFNotificationSuspensionBehaviorCoalesce);
+	CACFDistributedNotification::AddObserver((const void*)mToken, (CFNotificationCallback)ChangeNotification, mInputStereoPrefsKey);
+	CACFDistributedNotification::AddObserver((const void*)mToken, (CFNotificationCallback)ChangeNotification, mOutputStereoPrefsKey);
+	CACFDistributedNotification::AddObserver((const void*)mToken, (CFNotificationCallback)ChangeNotification, mInputChannelLayoutPrefsKey);
+	CACFDistributedNotification::AddObserver((const void*)mToken, (CFNotificationCallback)ChangeNotification, mOutputChannelLayoutPrefsKey);
 }
 
 void	HP_PreferredChannels::Teardown()
 {
-	CFNotificationCenterRemoveObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, mOutputChannelLayoutPrefsKey, NULL);
-	CFNotificationCenterRemoveObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, mInputChannelLayoutPrefsKey, NULL);
-	CFNotificationCenterRemoveObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, mOutputStereoPrefsKey, NULL);
-	CFNotificationCenterRemoveObserver(CFNotificationCenterGetDistributedCenter(), (const void*)mToken, mInputStereoPrefsKey, NULL);
+	CACFDistributedNotification::RemoveObserver((const void*)mToken, mInputStereoPrefsKey);
+	CACFDistributedNotification::RemoveObserver((const void*)mToken, mOutputStereoPrefsKey);
+	CACFDistributedNotification::RemoveObserver((const void*)mToken, mInputChannelLayoutPrefsKey);
+	CACFDistributedNotification::RemoveObserver((const void*)mToken, mOutputChannelLayoutPrefsKey);
+	if(mPreferredInputStereoChannels != NULL)
+	{
+		CFRelease(mPreferredInputStereoChannels);
+	}
+	if(mPreferredOutputStereoChannels != NULL)
+	{
+		CFRelease(mPreferredOutputStereoChannels);
+	}
+	if(mPreferredInputChannelLayout != NULL)
+	{
+		CFRelease(mPreferredInputChannelLayout);
+	}
+	if(mPreferredOutputChannelLayout != NULL)
+	{
+		CFRelease(mPreferredOutputChannelLayout);
+	}
 	CFRelease(mOutputChannelLayoutPrefsKey);
 	CFRelease(mInputChannelLayoutPrefsKey);
 	CFRelease(mOutputStereoPrefsKey);
@@ -243,6 +279,10 @@ bool	HP_PreferredChannels::IsActive(const AudioObjectPropertyAddress& inAddress)
 			break;
 		
 		case kAudioDevicePropertyPreferredChannelLayout:
+			theAnswer = ((inAddress.mScope == kAudioDevicePropertyScopeInput) && mDevice->HasInputStreams()) || ((inAddress.mScope == kAudioDevicePropertyScopeOutput) && mDevice->HasOutputStreams());
+			break;
+		
+		case 'srdd':
 			theAnswer = ((inAddress.mScope == kAudioDevicePropertyScopeInput) && mDevice->HasInputStreams()) || ((inAddress.mScope == kAudioDevicePropertyScopeOutput) && mDevice->HasOutputStreams());
 			break;
 	};
@@ -263,6 +303,10 @@ bool	HP_PreferredChannels::IsPropertySettable(const AudioObjectPropertyAddress& 
 		case kAudioDevicePropertyPreferredChannelLayout:
 			theAnswer = true;
 			break;
+		
+		case 'srdd':
+			theAnswer = false;
+			break;
 	};
 	
 	return theAnswer;
@@ -275,10 +319,14 @@ UInt32	HP_PreferredChannels::GetPropertyDataSize(const AudioObjectPropertyAddres
 	switch(inAddress.mSelector)
 	{
 		case kAudioDevicePropertyPreferredChannelsForStereo:
-			theAnswer = 2 * sizeof(UInt32);
+			theAnswer = 2 * SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyPreferredChannelLayout:
+			theAnswer = CAAudioChannelLayout::CalculateByteSize(mDevice->GetTotalNumberChannels(inAddress.mScope == kAudioDevicePropertyScopeInput));
+			break;
+			
+		case 'srdd':
 			theAnswer = CAAudioChannelLayout::CalculateByteSize(mDevice->GetTotalNumberChannels(inAddress.mScope == kAudioDevicePropertyScopeInput));
 			break;
 	};
@@ -301,12 +349,18 @@ void	HP_PreferredChannels::GetPropertyData(const AudioObjectPropertyAddress& inA
 				theStereoChannels[1] = 2;
 				
 				//	get the preference
-				CACFArray thePrefStereoChannels(CACFPreferences::CopyArrayValue((isInput ? mInputStereoPrefsKey : mOutputStereoPrefsKey), false, true), true);
+				CACFArray thePrefStereoChannels(isInput ? mPreferredInputStereoChannels : mPreferredOutputStereoChannels, false);
 				if(thePrefStereoChannels.IsValid())
 				{
 					//	get the values from the array
 					thePrefStereoChannels.GetUInt32(0, theStereoChannels[0]);
 					thePrefStereoChannels.GetUInt32(1, theStereoChannels[1]);
+				}
+				
+				if (!isInput) 
+				{
+					// update the cached value if necessary
+					memcpy(const_cast<HP_PreferredChannels*>(this)->mOutputStereoPair, theStereoChannels, sizeof(UInt32)*2);
 				}
 			}
 			break;
@@ -316,16 +370,25 @@ void	HP_PreferredChannels::GetPropertyData(const AudioObjectPropertyAddress& inA
 				ThrowIf(ioDataSize != GetPropertyDataSize(inAddress, inQualifierDataSize, inQualifierData), CAException(kAudioHardwareBadPropertySizeError), "HP_PreferredChannels::GetPropertyData: wrong data size for kAudioDevicePropertyPreferredChannelLayout");
 				AudioChannelLayout* theChannelLayout = static_cast<AudioChannelLayout*>(outData);
 				
-				//	initialize the output
-				CAAudioChannelLayout::SetAllToUnknown(*theChannelLayout, mDevice->GetTotalNumberChannels(isInput));
+				//	fetch the default layout from the device
+				mDevice->GetDefaultChannelLayout(isInput, *theChannelLayout);
 				
 				//	get the pref
-				CFDictionaryRef __thePrefChannelLayout = CACFPreferences::CopyDictionaryValue((isInput ? mInputChannelLayoutPrefsKey : mOutputChannelLayoutPrefsKey), false, true);
-				CACFDictionary thePrefChannelLayout(__thePrefChannelLayout, true);
+				CACFDictionary thePrefChannelLayout(isInput ? mPreferredInputChannelLayout : mPreferredOutputChannelLayout, false);
 				if(thePrefChannelLayout.IsValid())
 				{
 					HP_PreferredChannels_ConstructLayoutFromDictionary(thePrefChannelLayout, *theChannelLayout);
 				}
+			}
+			break;
+			
+		case 'srdd':
+			{
+				ThrowIf(ioDataSize != GetPropertyDataSize(inAddress, inQualifierDataSize, inQualifierData), CAException(kAudioHardwareBadPropertySizeError), "HP_PreferredChannels::GetPropertyData: wrong data size for 'srdd'");
+				AudioChannelLayout* theChannelLayout = static_cast<AudioChannelLayout*>(outData);
+				
+				//	fetch the default layout from the device
+				mDevice->GetDefaultChannelLayout(isInput, *theChannelLayout);
 			}
 			break;
 	};
@@ -340,7 +403,7 @@ void	HP_PreferredChannels::SetPropertyData(const AudioObjectPropertyAddress& inA
 	{
 		case kAudioDevicePropertyPreferredChannelsForStereo:
 			{
-				ThrowIf(inDataSize != GetPropertyDataSize(inAddress, inQualifierDataSize, inQualifierData), CAException(kAudioHardwareBadPropertySizeError), "HP_PreferredChannels::SetPropertyData: wrong data size for kAudioDevicePropertyPreferredChannelLayout");
+				ThrowIf(inDataSize != GetPropertyDataSize(inAddress, inQualifierDataSize, inQualifierData), CAException(kAudioHardwareBadPropertySizeError), "HP_PreferredChannels::SetPropertyData: wrong data size for kAudioDevicePropertyPreferredChannelsForStereo");
 				const UInt32* theStereoChannels = static_cast<const UInt32*>(inData);
 				
 				//	create an array to hold the prefs value
@@ -356,6 +419,23 @@ void	HP_PreferredChannels::SetPropertyData(const AudioObjectPropertyAddress& inA
 				thePrefsKey = (isInput ? mInputStereoPrefsKey : mOutputStereoPrefsKey);
 				CACFPreferences::SetValue(thePrefsKey, thePrefStereoChannels.GetCFArray(), false, true, true);
 				
+				CFArrayRef theStereoChannelsArray = isInput ? mPreferredInputStereoChannels : mPreferredOutputStereoChannels;
+
+				//	if the value changed re-cache it and send notifications
+				CFArrayRef array = CACFPreferences::CopyArrayValue(thePrefsKey, false, true);
+				//	release the old array
+				if (theStereoChannelsArray != NULL)
+					CFRelease(theStereoChannelsArray);
+
+				//	save the new one
+				if (isInput)
+					mPreferredInputStereoChannels = array;
+				else
+					mPreferredOutputStereoChannels = array;
+
+				//	send property changed
+				mDevice->PropertiesChanged(1, &inAddress);
+
 				//	send the notification
 				SendChangeNotification(thePrefsKey);
 			}
@@ -376,6 +456,24 @@ void	HP_PreferredChannels::SetPropertyData(const AudioObjectPropertyAddress& inA
 				thePrefsKey = (isInput ? mInputChannelLayoutPrefsKey : mOutputChannelLayoutPrefsKey);
 				CACFPreferences::SetValue(thePrefsKey, thePrefChannelLayout.GetDict(), false, true, true);
 				
+				CFDictionaryRef theChannelLayoutDict = isInput ? mPreferredInputChannelLayout : mPreferredOutputChannelLayout;
+
+				//	if the value changed re-cache it and send notifications
+				CFDictionaryRef dictionary = CACFPreferences::CopyDictionaryValue(thePrefsKey, false, true);
+
+				//	release the old dict
+				if (theChannelLayoutDict != NULL)
+					CFRelease(theChannelLayoutDict);
+
+				//	save the new one
+				if (isInput)
+					mPreferredInputChannelLayout = dictionary;
+				else
+					mPreferredOutputChannelLayout = dictionary;
+
+				//	send property changed
+				mDevice->PropertiesChanged(1, &inAddress);
+
 				//	send the notification
 				SendChangeNotification(thePrefsKey);
 			}
@@ -383,9 +481,18 @@ void	HP_PreferredChannels::SetPropertyData(const AudioObjectPropertyAddress& inA
 	};
 }
 
+void	HP_PreferredChannels::ClearPrefs()
+{
+	CACFPreferences::DeleteValue(mInputStereoPrefsKey, false, true, true);
+	CACFPreferences::DeleteValue(mOutputStereoPrefsKey, false, true, true);
+	CACFPreferences::DeleteValue(mInputChannelLayoutPrefsKey, false, true, true);
+	CACFPreferences::DeleteValue(mOutputChannelLayoutPrefsKey, false, true, true);
+	CACFPreferences::Synchronize(false, true, true);
+}
+
 UInt32	HP_PreferredChannels::GetNumberAddressesImplemented() const
 {
-	return 2;
+	return 3;
 }
 
 void	HP_PreferredChannels::GetImplementedAddressByIndex(UInt32 inIndex, AudioObjectPropertyAddress& outAddress) const
@@ -398,6 +505,10 @@ void	HP_PreferredChannels::GetImplementedAddressByIndex(UInt32 inIndex, AudioObj
 			
 		case 1:
 			outAddress.mSelector = kAudioDevicePropertyPreferredChannelLayout;
+			break;
+			
+		case 2:
+			outAddress.mSelector = 'srdd';
 			break;
 	};
 	outAddress.mScope = kAudioObjectPropertyScopeWildcard;
@@ -421,35 +532,137 @@ void	HP_PreferredChannels::ChangeNotification(CFNotificationCenterRef /*inCenter
 				AudioObjectPropertyAddress theAddress;
 				theAddress.mElement = kAudioObjectPropertyElementMaster;
 				
+				//	mark the prefs as dirty
+				CACFPreferences::MarkPrefsOutOfDate(false, true);
+				
 				//	figure out what changed
 				if(CFStringCompare(inNotificationName, thePreferredChannelProperty->mInputStereoPrefsKey, 0) == kCFCompareEqualTo)
 				{
 					theAddress.mSelector = kAudioDevicePropertyPreferredChannelsForStereo;
 					theAddress.mScope = kAudioDevicePropertyScopeInput;
+					
+					CFArrayRef array = CACFPreferences::CopyArrayValue(thePreferredChannelProperty->mInputStereoPrefsKey, false, true);
+					if (array != NULL)
+					{
+						if (thePreferredChannelProperty->mPreferredInputStereoChannels != NULL && CFEqual(array, thePreferredChannelProperty->mPreferredInputStereoChannels))
+						{
+							//	nothing to do, except release array
+							CFRelease(array);
+						}
+						else
+						{
+							//	re-cache the value
+							if (thePreferredChannelProperty->mPreferredInputStereoChannels != NULL)
+								CFRelease(thePreferredChannelProperty->mPreferredInputStereoChannels);
+							thePreferredChannelProperty->mPreferredInputStereoChannels = array;
+
+							thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+							
+						}
+					}
+					else if (thePreferredChannelProperty->mPreferredInputStereoChannels != NULL)
+					{
+						CFRelease(thePreferredChannelProperty->mPreferredInputStereoChannels);
+						thePreferredChannelProperty->mPreferredInputStereoChannels = NULL;
+
+						thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+					}
 				}
 				else if(CFStringCompare(inNotificationName, thePreferredChannelProperty->mOutputStereoPrefsKey, 0) == kCFCompareEqualTo)
 				{
 					theAddress.mSelector = kAudioDevicePropertyPreferredChannelsForStereo;
 					theAddress.mScope = kAudioDevicePropertyScopeOutput;
+					
+					CFArrayRef array = CACFPreferences::CopyArrayValue(thePreferredChannelProperty->mOutputStereoPrefsKey, false, true);
+					if (array != NULL)
+					{
+						if (thePreferredChannelProperty->mPreferredOutputStereoChannels != NULL && CFEqual(array, thePreferredChannelProperty->mPreferredOutputStereoChannels))
+						{
+							//	nothing to do, except release array
+							CFRelease(array);
+						}
+						else
+						{
+							//	re-cache the value
+							if (thePreferredChannelProperty->mPreferredOutputStereoChannels != NULL)
+								CFRelease(thePreferredChannelProperty->mPreferredOutputStereoChannels);
+							thePreferredChannelProperty->mPreferredOutputStereoChannels = array;
+
+							thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+							
+						}
+					}
+					else if (thePreferredChannelProperty->mPreferredOutputStereoChannels != NULL)
+					{
+						CFRelease(thePreferredChannelProperty->mPreferredOutputStereoChannels);
+						thePreferredChannelProperty->mPreferredOutputStereoChannels = NULL;
+
+						thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+					}
 				}
 				else if(CFStringCompare(inNotificationName, thePreferredChannelProperty->mInputChannelLayoutPrefsKey, 0) == kCFCompareEqualTo)
 				{
 					theAddress.mSelector = kAudioDevicePropertyPreferredChannelLayout;
 					theAddress.mScope = kAudioDevicePropertyScopeInput;
+					
+					CFDictionaryRef dictionary = CACFPreferences::CopyDictionaryValue(thePreferredChannelProperty->mInputChannelLayoutPrefsKey, false, true);
+					if (dictionary != NULL)
+					{
+						if (thePreferredChannelProperty->mPreferredInputChannelLayout != NULL && CFEqual(dictionary, thePreferredChannelProperty->mPreferredInputChannelLayout))
+						{
+							//	nothing to do, except release dictionary
+							CFRelease(dictionary);
+						}
+						else
+						{
+							//	re-cache the value
+							if (thePreferredChannelProperty->mPreferredInputChannelLayout != NULL)
+								CFRelease(thePreferredChannelProperty->mPreferredInputChannelLayout);
+							thePreferredChannelProperty->mPreferredInputChannelLayout = dictionary;
+
+							thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+							
+						}
+					}
+					else if (thePreferredChannelProperty->mPreferredInputChannelLayout != NULL)
+					{
+						CFRelease(thePreferredChannelProperty->mPreferredInputChannelLayout);
+						thePreferredChannelProperty->mPreferredInputChannelLayout = NULL;
+
+						thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+					}
 				}
 				else if(CFStringCompare(inNotificationName, thePreferredChannelProperty->mOutputChannelLayoutPrefsKey, 0) == kCFCompareEqualTo)
 				{
 					theAddress.mSelector = kAudioDevicePropertyPreferredChannelLayout;
 					theAddress.mScope = kAudioDevicePropertyScopeOutput;
-				}
-				
-				//	mark the prefs as dirty
-				CACFPreferences::MarkPrefsOutOfDate(false, true);
-				
-				//	send the notification
-				if(theAddress.mSelector != 0)
-				{
-					thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+
+					CFDictionaryRef dictionary = CACFPreferences::CopyDictionaryValue(thePreferredChannelProperty->mOutputChannelLayoutPrefsKey, false, true);
+					if (dictionary != NULL)
+					{
+						if (thePreferredChannelProperty->mPreferredOutputChannelLayout != NULL && CFEqual(dictionary, thePreferredChannelProperty->mPreferredOutputChannelLayout))
+						{
+							//	nothing to do, except release dictionary
+							CFRelease(dictionary);
+						}
+						else
+						{
+							//	re-cache the value
+							if (thePreferredChannelProperty->mPreferredOutputChannelLayout != NULL)
+								CFRelease(thePreferredChannelProperty->mPreferredOutputChannelLayout);
+							thePreferredChannelProperty->mPreferredOutputChannelLayout = dictionary;
+
+							thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+							
+						}
+					}
+					else if (thePreferredChannelProperty->mPreferredOutputChannelLayout != NULL)
+					{
+						CFRelease(thePreferredChannelProperty->mPreferredOutputChannelLayout);
+						thePreferredChannelProperty->mPreferredOutputChannelLayout = NULL;
+
+						thePreferredChannelProperty->mDevice->PropertiesChanged(1, &theAddress);
+					}
 				}
 			}
 		}

@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_DeviceInfoList.h
-
-==================================================================================================*/
 #if !defined(__HP_DeviceInfoList_h__)
 #define __HP_DeviceInfoList_h__
 
@@ -54,6 +50,7 @@
 
 //	PublicUtility Includes
 #include "CAStreamBasicDescription.h"
+#include "CADebugMacros.h"
 
 //	Standard Library Includes
 #include <vector>
@@ -137,7 +134,7 @@ public:
 	UInt32					GetNumberStreams(bool inIsInput) const
 	{
 		const StreamInfoList& theStreamInfoList = GetStreamInfoList(inIsInput);
-		return theStreamInfoList.size();
+		return ToUInt32(theStreamInfoList.size());
 	}
 	
 	UInt32					GetTotalNumberChannels(bool inIsInput) const

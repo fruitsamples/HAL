@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_Device.h
-
-==================================================================================================*/
 #if !defined(__HP_Device_h__)
 #define __HP_Device_h__
 
@@ -67,7 +63,9 @@ class   CAPropertyAddressList;
 class	HP_Command;
 class	HP_Control;
 class	HP_DeviceFormatList;
-class   HP_IOCycleTelemetry;
+#if Use_HAL_Telemetry
+	class   HP_IOCycleTelemetry;
+#endif
 class	HP_IOProcList;
 class	HP_PreferredChannels;
 class   HP_Stream;
@@ -108,22 +106,23 @@ public:
 	virtual bool			HogModeIsOwnedBySelf() const;
 	virtual bool			HogModeIsOwnedBySelfOrIsFree() const;
 	virtual void			HogModeStateChanged();
-
-#if CoreAudio_Debug
+	virtual void			GetDefaultChannelLayout(bool inIsInput, AudioChannelLayout& outLayout) const;
 	const char*				GetDebugDeviceName() const	{ return mDebugDeviceName; }
 
 private:
 	char					mDebugDeviceName[256];
-#endif
 
 //  Basic Operations
 public:
 	virtual CAMutex*		GetObjectStateMutex();
-	CAMutex&				GetStateMutex() { return mStateMutex; }
+	CAMutex&				GetDeviceStateMutex() { return *mDeviceStateMutex; }
 	virtual void			Show() const;
 
 protected:
-	CAMutex					mStateMutex;
+	virtual void			CreateDeviceStateMutex();
+	virtual void			DestroyDeviceStateMutex();
+	
+	CAMutex*				mDeviceStateMutex;
 
 //	Property Access
 public:
@@ -135,6 +134,8 @@ public:
 #if	(MAC_OS_X_VERSION_MAX_ALLOWED < MAC_OS_X_VERSION_10_4)
 	virtual void			PropertiesChanged(UInt32 inNumberAddresses, const AudioObjectPropertyAddress inAddresses[]) const;
 #endif
+
+	virtual void			ClearPrefs();
 	
 protected:
 	HP_PreferredChannels*	mPreferredChannels;
@@ -148,12 +149,14 @@ public:
 
 protected:
 	virtual bool			IsSafeToExecuteCommand();
+	virtual bool			IsPermittedToExecuteCommand(HP_Command* inCommand);
 	virtual bool			StartCommandExecution(void** outSavedCommandState);
 	virtual void			FinishCommandExecution(void* inSavedCommandState);
 
 	typedef std::vector<HP_Command*>	CommandList;
 	
 	CommandList				mCommandList;
+	CommandList				mShadowCommandList;
 
 //	IOProc Management
 public:
@@ -182,6 +185,9 @@ public:
 	virtual void			SetIOProcStreamUsage(AudioDeviceIOProcID inProcID, bool inIsInput, UInt32 inNumberStreams, const bool inStreamUsage[]);
 
 protected:
+	virtual void			CreateIOProcList();
+	virtual void			DestroyIOProcList();
+
 	HP_IOProcList*			mIOProcList;
 
 //  IO Management
@@ -198,7 +204,8 @@ public:
 	virtual UInt32			GetIOBufferFrameSizePadding() const;
 	UInt32					DetermineIOBufferFrameSize() const;
 	virtual void			Do_SetIOBufferFrameSize(UInt32 inIOBufferFrameSize);
-	void					SetIOBufferFrameSize(UInt32 inIOBufferFrameSize);
+	virtual void			Do_SetQuietIOBufferFrameSize(UInt32 inIOBufferFrameSize);
+	void					SetIOBufferFrameSize(UInt32 inIOBufferFrameSize, bool inSendNotifications);
 	virtual void			CalculateIOThreadTimeConstraints(UInt64& outPeriod, UInt32& outQuanta);
 	
 	bool					IsIOEngineRunning() const   { return mIOEngineIsRunning; }
@@ -212,7 +219,7 @@ public:
 	virtual bool			CallIOProcs(const AudioTimeStamp& inCurrentTime, const AudioTimeStamp& inInputTime, const AudioTimeStamp& inOutputTime);
 
 protected:
-	virtual void			IOBufferFrameSizeChanged(CAPropertyAddressList& outChangedProperties);
+	virtual void			IOBufferFrameSizeChanged(bool inSendNotifications, CAPropertyAddressList* outChangedProperties);
 	virtual void			StartIOEngine();
 	virtual void			StartIOEngineAtTime(const AudioTimeStamp& inStartTime, UInt32 inStartTimeFlags);
 	virtual void			StopIOEngine();
@@ -225,11 +232,15 @@ protected:
 
 //	IO Cycle Telemetry Support
 public:
+#if Use_HAL_Telemetry
 	HP_IOCycleTelemetry&	GetIOCycleTelemetry() const { return *mIOCycleTelemetry; }
+#endif
 	virtual UInt32			GetIOCycleNumber() const;
 	
+#if Use_HAL_Telemetry
 protected:
 	HP_IOCycleTelemetry*	mIOCycleTelemetry;
+#endif
 	
 //	Time Management
 public:
@@ -256,7 +267,7 @@ public:
 	bool					CanSetIsMixable(bool inIsInput) const;
 	bool					HasInputStreams() const { return HasAnyStreams(true); }
 	bool					HasOutputStreams() const { return HasAnyStreams(false); }
-	UInt32					GetNumberStreams(bool inIsInput) const { return inIsInput ? mInputStreamList.size() : mOutputStreamList.size(); }
+	UInt32					GetNumberStreams(bool inIsInput) const { return inIsInput ? ToUInt32(mInputStreamList.size()) : ToUInt32(mOutputStreamList.size()); }
 	HP_Stream*				GetStreamByIndex(bool inIsInput, UInt32 inIndex) const;
 	HP_Stream*				GetStreamByDeviceChannel(bool inIsInput, UInt32 inDeviceChannel) const;
 	HP_Stream*				GetStreamByPropertyAddress(const AudioObjectPropertyAddress& inAddress, bool inTryRealHard) const;
@@ -276,9 +287,22 @@ public:
 	virtual HP_Control*					GetControlByAddress(const AudioObjectPropertyAddress& inDeviceAddress) const;
 	virtual void						ConvertDeviceAddressToControlAddress(const AudioObjectPropertyAddress& inDeviceAddress, AudioClassID& outControlClassID, AudioObjectPropertyScope& outControlScope, AudioObjectPropertyElement& outControlElement) const;
 	virtual AudioObjectPropertySelector	ConvertDeviceSelectorToControlSelector(AudioObjectPropertySelector inDeviceSelector) const;
+	
 	virtual AudioObjectPropertySelector	GetPrimaryValueChangedPropertySelectorForControl(HP_Control* inControl) const;
 	virtual AudioObjectPropertySelector	GetSecondaryValueChangedPropertySelectorForControl(HP_Control* inControl) const;
-	virtual AudioObjectPropertySelector	GetRangeChangedPropertySelectorForControl(HP_Control* inControl) const;
+	virtual AudioObjectPropertySelector	GetThirdValueChangedPropertySelectorForControl(HP_Control* inControl) const;
+	virtual AudioObjectPropertySelector	GetFourthValueChangedPropertySelectorForControl(HP_Control* inControl) const;
+	
+	virtual AudioObjectPropertyScope	GetPrimaryValueChangedPropertyScopeForControl(HP_Control* inControl) const;
+	virtual AudioObjectPropertyScope	GetSecondaryValueChangedPropertyScopeForControl(HP_Control* inControl) const;
+	virtual AudioObjectPropertyScope	GetThirdValueChangedPropertyScopeForControl(HP_Control* inControl) const;
+	virtual AudioObjectPropertyScope	GetFourthValueChangedPropertyScopeForControl(HP_Control* inControl) const;
+	
+	virtual AudioObjectPropertySelector	GetPrimaryRangeChangedPropertySelectorForControl(HP_Control* inControl) const;
+	virtual AudioObjectPropertySelector	GetSecondaryRangeChangedPropertySelectorForControl(HP_Control* inControl) const;
+	
+	virtual AudioObjectPropertyScope	GetPrimaryRangeChangedPropertyScopeForControl(HP_Control* inControl) const;
+	virtual AudioObjectPropertyScope	GetSecondaryRangeChangedPropertyScopeForControl(HP_Control* inControl) const;
 
 protected:
 	void								AddControl(HP_Control* inControl);

@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_Device.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -54,7 +49,11 @@
 //  Local Includes
 #include "HP_Control.h"
 #include "HP_FormatList.h"
-#include "HP_IOCycleTelemetry.h"
+#if Use_HAL_Telemetry
+	#include "HP_IOCycleTelemetry.h"
+#else
+	#include "HALdtrace.h"
+#endif
 #include "HP_IOProcList.h"
 #include "HP_HardwarePlugIn.h"
 #include "HP_PreferredChannels.h"
@@ -62,15 +61,21 @@
 
 //  PublicUtility Includes
 #include "CAAudioBufferList.h"
+#include "CAAudioChannelLayout.h"
 #include "CAAutoDisposer.h"
 #include "CACFString.h"
 #include "CADebugMacros.h"
 #include "CAException.h"
+#if !Use_HAL_Telemetry
+	#include "CAGuard.h"
+#endif
 #include "CAHostTimeBase.h"
 
 //  System Includes
 #include <IOKit/audio/IOAudioTypes.h>
 #include <sys/types.h>
+
+//#define Log_BufferSizeChanges	1
 
 //==================================================================================================
 //	HP_Device
@@ -79,7 +84,7 @@
 HP_Device::HP_Device(AudioDeviceID inAudioDeviceID, AudioClassID inClassID, HP_HardwarePlugIn* inPlugIn, UInt32 inIOBufferSetID, bool inUseIOBuffers)
 :
 	HP_Object(inAudioDeviceID, inClassID, inPlugIn),
-	mStateMutex("DeviceStateMutex"),
+	mDeviceStateMutex(NULL),
 	mPreferredChannels(NULL),
 	mDeviceFormatList(NULL),
 	mIOProcList(NULL),
@@ -87,7 +92,9 @@ HP_Device::HP_Device(AudioDeviceID inAudioDeviceID, AudioClassID inClassID, HP_H
 	mUseIOBuffers(inUseIOBuffers),
 	mIOBufferFrameSize(512),
 	mIOEngineIsRunning(false),
+#if Use_HAL_Telemetry
 	mIOCycleTelemetry(NULL),
+#endif
 	mInputStreamList(),
 	mOutputStreamList()
 {
@@ -99,13 +106,16 @@ HP_Device::~HP_Device()
 
 void	HP_Device::Initialize()
 {
+	CreateDeviceStateMutex();
+	
 	HP_Object::Initialize();
 	
-	mIOProcList = new HP_IOProcList(this, mIOBufferSetID, mUseIOBuffers);
+	CreateIOProcList();
 	
+#if Use_HAL_Telemetry
 	mIOCycleTelemetry = new HP_IOCycleTelemetry(this);
 	mIOCycleTelemetry->Initialize(NULL);
-	
+#endif	
 	mPreferredChannels = new HP_PreferredChannels(this);
 	mPreferredChannels->Initialize();
 	AddProperty(mPreferredChannels);
@@ -115,24 +125,23 @@ void	HP_Device::Initialize()
 	AddProperty(mDeviceFormatList);
 	
 	//	grab the name of the device for debugging purposes
-	#if CoreAudio_Debug
-		CACFString theDeviceName(CopyDeviceName());
-		if(theDeviceName.IsValid())
-		{
-			UInt32 theStringSize = 255;
-			theDeviceName.GetCString(mDebugDeviceName, theStringSize);
-		}
-		else
-		{
-			strcpy(mDebugDeviceName, "Unknown");
-		}
-	#endif
+	CACFString theDeviceName(CopyDeviceName());
+	if(theDeviceName.IsValid())
+	{
+		UInt32 theStringSize = 255;
+		theDeviceName.GetCString(mDebugDeviceName, theStringSize);
+	}
+	else
+	{
+		strlcpy(mDebugDeviceName, "Unknown", 256);
+	}
 }
 
 void	HP_Device::Teardown()
 {
+#if Use_HAL_Telemetry
 	mIOCycleTelemetry->SetIsCapturing(false);
-	
+#endif	
 	RemoveProperty(mDeviceFormatList);
 	mDeviceFormatList->Teardown();
 	delete mDeviceFormatList;
@@ -143,14 +152,16 @@ void	HP_Device::Teardown()
 	delete mPreferredChannels;
 	mPreferredChannels = NULL;
 	
+#if Use_HAL_Telemetry
 	mIOCycleTelemetry->Teardown();
 	delete mIOCycleTelemetry;
 	mIOCycleTelemetry = NULL;
-
-	delete mIOProcList;
-	mIOProcList = NULL;
+#endif
+	DestroyIOProcList();
 	
 	HP_Object::Teardown();
+	
+	DestroyDeviceStateMutex();
 }
 
 bool	HP_Device::IsAlive() const
@@ -278,9 +289,28 @@ void	HP_Device::HogModeStateChanged()
 	Do_StopAllIOProcs();
 }
 
+void	HP_Device::GetDefaultChannelLayout(bool inIsInput, AudioChannelLayout& outLayout) const
+{
+	CAAudioChannelLayout::SetAllToUnknown(outLayout, GetTotalNumberChannels(inIsInput));
+}
+
 CAMutex*	HP_Device::GetObjectStateMutex()
 {
-	return &mStateMutex;
+	return mDeviceStateMutex;
+}
+
+void	HP_Device::CreateDeviceStateMutex()
+{
+	if(mDeviceStateMutex == NULL)
+	{
+		mDeviceStateMutex = new CAMutex("DeviceStateMutex");
+	}
+}
+
+void	HP_Device::DestroyDeviceStateMutex()
+{
+	delete mDeviceStateMutex;
+	mDeviceStateMutex = NULL;
 }
 
 void	HP_Device::Show() const
@@ -291,19 +321,19 @@ void	HP_Device::Show() const
 	switch(mClassID)
 	{
 		case kAudioAggregateDeviceClassID:
-			theClassName = "Aggregate Device";
+			theClassName = (char*)"Aggregate Device";
 			break;
 		
 		case kAudioDeviceClassID:
 		default:
-			theClassName = "Audio Device";
+			theClassName = (char*)"Audio Device";
 			break;
 	}
 	
 	//  get the object's name
 	CAPropertyAddress theAddress(kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster);
 	CFStringRef theCFName = NULL;
-	UInt32 theSize = sizeof(CFStringRef);
+	UInt32 theSize = SizeOf32(CFStringRef);
 	try
 	{
 		GetPropertyData(theAddress, 0, NULL, theSize, &theCFName);
@@ -339,7 +369,7 @@ bool	HP_Device::HasProperty(const AudioObjectPropertyAddress& inAddress) const
 	CFURLRef theCFURL = NULL;
 	
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->mStateMutex);
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -570,7 +600,7 @@ bool	HP_Device::IsPropertySettable(const AudioObjectPropertyAddress& inAddress) 
 	bool theAnswer = false;
 	
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->mStateMutex);
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -736,104 +766,104 @@ UInt32	HP_Device::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 	bool isInput = inAddress.mScope == kAudioDevicePropertyScopeInput;
 				
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->mStateMutex);
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
 		case kAudioObjectPropertyName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyManufacturer:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyElementName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyElementCategoryName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioObjectPropertyElementNumberName:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioDevicePropertyConfigurationApplication:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioDevicePropertyDeviceUID:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioDevicePropertyModelUID:
-			theAnswer = sizeof(CFStringRef);
+			theAnswer = SizeOf32(CFStringRef);
 			break;
 			
 		case kAudioDevicePropertyTransportType:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyRelatedDevices:
-			theAnswer = sizeof(AudioObjectID);
+			theAnswer = SizeOf32(AudioObjectID);
 			break;
 			
 		case kAudioDevicePropertyClockDomain:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyDeviceIsAlive:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyDeviceHasChanged:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyDeviceIsRunning:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyDeviceIsRunningSomewhere:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyDeviceCanBeDefaultDevice:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyDeviceCanBeDefaultSystemDevice:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDeviceProcessorOverload:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyHogMode:
-			theAnswer = sizeof(pid_t);
+			theAnswer = SizeOf32(pid_t);
 			break;
 			
 		case kAudioDevicePropertyLatency:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyBufferFrameSize:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyBufferFrameSizeRange:
-			theAnswer = sizeof(AudioValueRange);
+			theAnswer = SizeOf32(AudioValueRange);
 			break;
 			
 		case kAudioDevicePropertyStreams:
-			theAnswer = sizeof(AudioStreamID) * GetNumberStreams(isInput);
+			theAnswer = SizeOf32(AudioStreamID) * GetNumberStreams(isInput);
 			break;
 			
 		case kAudioDevicePropertySafetyOffset:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyStreamConfiguration:
@@ -841,18 +871,18 @@ UInt32	HP_Device::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 			break;
 			
 		case kAudioDevicePropertyIOProcStreamUsage:
-			theAnswer = sizeof(void*) + sizeof(UInt32) + (GetNumberStreams(isInput) * sizeof(UInt32));
+			theAnswer = SizeOf32(void*) + SizeOf32(UInt32) + (GetNumberStreams(isInput) * SizeOf32(UInt32));
 			break;
 			
 		case kAudioDevicePropertyActualSampleRate:
-			theAnswer = sizeof(Float64);
+			theAnswer = SizeOf32(Float64);
 			break;
 			
 		case kAudioDevicePropertyDeviceName:
 			theCFString = CopyDeviceName();
 			if(theCFString != NULL)
 			{
-				theAnswer = CFStringGetLength(theCFString) + 1;
+				theAnswer = ToUInt32(CFStringGetLength(theCFString)) + 1;
 				CFRelease(theCFString);
 			}
 			break;
@@ -861,7 +891,7 @@ UInt32	HP_Device::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 			theCFString = CopyDeviceManufacturerName();
 			if(theCFString != NULL)
 			{
-				theAnswer = CFStringGetLength(theCFString) + 1;
+				theAnswer = ToUInt32(CFStringGetLength(theCFString)) + 1;
 				CFRelease(theCFString);
 			}
 			break;
@@ -870,7 +900,7 @@ UInt32	HP_Device::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 			theCFString = CopyElementFullName(inAddress);
 			if(theCFString != NULL)
 			{
-				theAnswer = CFStringGetLength(theCFString) + 1;
+				theAnswer = ToUInt32(CFStringGetLength(theCFString)) + 1;
 				CFRelease(theCFString);
 			}
 			break;
@@ -879,7 +909,7 @@ UInt32	HP_Device::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 			theCFString = CopyElementCategoryName(inAddress);
 			if(theCFString != NULL)
 			{
-				theAnswer = CFStringGetLength(theCFString) + 1;
+				theAnswer = ToUInt32(CFStringGetLength(theCFString)) + 1;
 				CFRelease(theCFString);
 			}
 			break;
@@ -888,25 +918,25 @@ UInt32	HP_Device::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 			theCFString = CopyElementNumberName(inAddress);
 			if(theCFString != NULL)
 			{
-				theAnswer = CFStringGetLength(theCFString) + 1;
+				theAnswer = ToUInt32(CFStringGetLength(theCFString)) + 1;
 				CFRelease(theCFString);
 			}
 			break;
 			
 		case kAudioDevicePropertyBufferSize:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyBufferSizeRange:
-			theAnswer = sizeof(AudioValueRange);
+			theAnswer = SizeOf32(AudioValueRange);
 			break;
 			
 		case kAudioDevicePropertyIcon:
-			theAnswer = sizeof(CFURLRef);
+			theAnswer = SizeOf32(CFURLRef);
 			break;
 			
 		case kAudioDevicePropertyIsHidden:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		default:
@@ -927,7 +957,7 @@ void	HP_Device::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 	bool isInput = inAddress.mScope == kAudioDevicePropertyScopeInput;
 				
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->mStateMutex);
+	CAMutex::Locker theStateMutex(const_cast<HP_Device*>(this)->GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -980,7 +1010,7 @@ void	HP_Device::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 			if(ioDataSize >= sizeof(AudioObjectID))
 			{
 				*static_cast<AudioDeviceID*>(outData) = GetObjectID();
-				ioDataSize = sizeof(AudioObjectID);
+				ioDataSize = SizeOf32(AudioObjectID);
 			}
 			else
 			{
@@ -1036,7 +1066,7 @@ void	HP_Device::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 			
 		case kAudioDevicePropertyLatency:
 			ThrowIf(ioDataSize != GetPropertyDataSize(inAddress, inQualifierDataSize, inQualifierData), CAException(kAudioHardwareBadPropertySizeError), "HP_Device::GetPropertyData: wrong data size for kAudioDevicePropertyLatency");
-			*static_cast<pid_t*>(outData) = GetLatency(isInput);
+			*static_cast<UInt32*>(outData) = GetLatency(isInput);
 			break;
 			
 		case kAudioDevicePropertyBufferFrameSize:
@@ -1053,13 +1083,13 @@ void	HP_Device::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 		case kAudioDevicePropertyStreams:
 			{
 				AudioStreamID* theStreamList = static_cast<AudioStreamID*>(outData);
-				UInt32 theNumberStreams = std::min((UInt32)(ioDataSize / sizeof(AudioStreamID)), GetNumberStreams(isInput));
+				UInt32 theNumberStreams = std::min((UInt32)(ioDataSize / SizeOf32(AudioStreamID)), GetNumberStreams(isInput));
 				for(theIndex = 0; theIndex < theNumberStreams ; ++theIndex)
 				{
 					theStream = GetStreamByIndex(isInput, theIndex);
 					theStreamList[theIndex] = theStream->GetObjectID();
 				}
-				ioDataSize = theNumberStreams * sizeof(AudioStreamID);
+				ioDataSize = theNumberStreams * SizeOf32(AudioStreamID);
 			}
 			break;
 			
@@ -1094,7 +1124,11 @@ void	HP_Device::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 				AudioHardwareIOProcStreamUsage* theStreamUsageStruct = static_cast<AudioHardwareIOProcStreamUsage*>(outData);
 				UInt32 theNumberStreams = GetNumberStreams(isInput);
 				CAAutoArrayDelete<bool> theStreamUsage(theNumberStreams);
-				mIOProcList->GetIOProcStreamUsage((AudioDeviceIOProc)theStreamUsageStruct->mIOProc, isInput, theNumberStreams, theStreamUsage);
+				memset(theStreamUsage.get(), 0, theNumberStreams * sizeof(bool));
+				if(mIOProcList != NULL)
+				{
+					mIOProcList->GetIOProcStreamUsage((AudioDeviceIOProc)theStreamUsageStruct->mIOProc, isInput, theNumberStreams, theStreamUsage);
+				}
 				
 				//	fill out the return value
 				theStreamUsageStruct->mNumberStreams = theNumberStreams;
@@ -1204,7 +1238,7 @@ void	HP_Device::SetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 	bool isInput = inAddress.mScope == kAudioDevicePropertyScopeInput;
 				
 	//	take and hold the state mutex
-	CAMutex::Locker theStateMutex(mStateMutex);
+	CAMutex::Locker theStateMutex(GetDeviceStateMutex());
 	
 	switch(inAddress.mSelector)
 	{
@@ -1292,10 +1326,15 @@ void	HP_Device::PropertiesChanged(UInt32 inNumberAddresses, const AudioObjectPro
 }
 #endif
 
+void	HP_Device::ClearPrefs()
+{
+	mPreferredChannels->ClearPrefs();
+}
+
 void	HP_Device::ExecuteCommand(HP_Command* inCommand)
 {
 	//	see if we can execute the command immediately
-	if(IsSafeToExecuteCommand())
+	if(IsSafeToExecuteCommand() && IsPermittedToExecuteCommand(inCommand))
 	{
 		OSStatus theError = 0;
 		
@@ -1326,35 +1365,49 @@ void	HP_Device::ExecuteCommand(HP_Command* inCommand)
 	else
 	{
 		//	we can't, so put it in the list for later execution
-		mCommandList.push_back(inCommand);
+		mCommandList.insert(mCommandList.begin(), inCommand);
+		
+		//	make sure the shadow list has at least as much capacity as what's in the list
+		mShadowCommandList.reserve(std::max(mShadowCommandList.capacity(), mCommandList.size()));
 	}
 }
 
 void	HP_Device::ExecuteAllCommands()
 {
 	//	This routine must always be called at a time when
-	//	it is safe to execute commands. This routine should
-	//	empty the list regardless of whether all the commands
-	//	have been executed.
+	//	it is safe to execute commands.
 	
-	CommandList::iterator theIterator = mCommandList.begin();
-	while(theIterator != mCommandList.end())
+	//	clear out the shadow list to hold any commands that don't have permission to execute
+	mShadowCommandList.clear();
+	
+	while(mCommandList.size() > 0)
 	{
-		HP_Command* theCommand = *theIterator;
+		HP_Command* theCommand = mCommandList.back();
+		mCommandList.pop_back();
 		
 		try
 		{
-			theCommand->Execute(this);
+			if(IsPermittedToExecuteCommand(theCommand))
+			{
+				theCommand->Execute(this);
+				delete theCommand;
+			}
+			else
+			{
+				mShadowCommandList.push_back(theCommand);
+			}
 		}
 		catch(...)
 		{
 		}
-		delete theCommand;
-		
-		std::advance(theIterator, 1);
 	}
 	
-	mCommandList.clear();
+	//	if there is anything in the shadow list, put them back into the real list
+	if(!mShadowCommandList.empty())
+	{
+		mCommandList.insert(mCommandList.begin(), mShadowCommandList.begin(), mShadowCommandList.end());
+		mShadowCommandList.clear();
+	}
 }
 
 void	HP_Device::ClearAllCommands()
@@ -1374,9 +1427,18 @@ void	HP_Device::ClearAllCommands()
 
 bool	HP_Device::IsSafeToExecuteCommand()
 {
-	//	override this routine to determine whether or not the
-	//	given command can be executed immediately in the current context.
-	//	Note that inCommand can be NULL, but this should not be a failure
+	//	Override this routine to determine whether or not a command can be executed immediately in
+	//	the current context.
+	return true;
+}
+
+bool	HP_Device::IsPermittedToExecuteCommand(HP_Command* /*inCommand*/)
+{
+	//	Override this method to determine whether or not the current command can
+	//	executed immediately in the current context.  Note that this method assumes the context
+	//	is safe as determined by IsSafeToExecuteCommand(). If a command isn't permitted to execute,
+	//	it will be queued to be executed at the next available safe opportunity. Denying permission
+	//	from off of the IO thread is a good way to force a command to be executing on the IO thread.
 	return true;
 }
 
@@ -1585,6 +1647,20 @@ void	HP_Device::SetIOProcStreamUsage(AudioDeviceIOProcID inProcID, bool inIsInpu
 	mIOProcList->SetIOProcStreamUsage(inProcID, inIsInput, inNumberStreams, inStreamUsage);
 }
 
+void	HP_Device::CreateIOProcList()
+{
+	if(mIOProcList == NULL)
+	{
+		mIOProcList = new HP_IOProcList(this, mIOBufferSetID, mUseIOBuffers);
+	}
+}
+
+void	HP_Device::DestroyIOProcList()
+{
+	delete mIOProcList;
+	mIOProcList = NULL;
+}
+
 UInt32	HP_Device::GetLatency(bool /*inIsInput*/) const
 {
 	return 0;
@@ -1650,6 +1726,10 @@ UInt32	HP_Device::DetermineIOBufferFrameSize() const
 	//	start with the current size
 	UInt32 theAnswer = mIOBufferFrameSize;
 	
+	//	range it against the min and max buffer size
+	theAnswer = std::min(theAnswer, GetMaximumIOBufferFrameSize());
+	theAnswer = std::max(theAnswer, GetMinimumIOBufferFrameSize());
+	
 	//	iterate through the streams to see if any of them require a specific IO buffer size
 	bool isDone = false;
 	for(UInt32 theSection = 0; !isDone && (theSection < 1); ++theSection)
@@ -1685,51 +1765,94 @@ void	HP_Device::Do_SetIOBufferFrameSize(UInt32 inIOBufferFrameSize)
 	ThrowIf(!IsValidIOBufferFrameSize(inIOBufferFrameSize), CAException(kAudioHardwareIllegalOperationError), "HP_Device::Do_SetIOBufferFrameSize: buffer size isn't valid");
 	if(inIOBufferFrameSize != mIOBufferFrameSize)
 	{
-		HP_Command* theCommand = new HP_ChangeBufferSizeCommand(inIOBufferFrameSize);
+		HP_Command* theCommand = new HP_ChangeBufferSizeCommand(inIOBufferFrameSize, true);
 		ExecuteCommand(theCommand);
 	}
 }
 
-void	HP_Device::SetIOBufferFrameSize(UInt32 inIOBufferFrameSize)
+void	HP_Device::Do_SetQuietIOBufferFrameSize(UInt32 inIOBufferFrameSize)
 {
+	ThrowIf(!IsValidIOBufferFrameSize(inIOBufferFrameSize), CAException(kAudioHardwareIllegalOperationError), "HP_Device::Do_SetQuietIOBufferFrameSize: buffer size isn't valid");
+	if(inIOBufferFrameSize != mIOBufferFrameSize)
+	{
+		HP_Command* theCommand = new HP_ChangeBufferSizeCommand(inIOBufferFrameSize, false);
+		ExecuteCommand(theCommand);
+	}
+}
+
+void	HP_Device::SetIOBufferFrameSize(UInt32 inIOBufferFrameSize, bool inSendNotifications)
+{
+	#if	Log_BufferSizeChanges
+		DebugMessageN1("HP_Device::SetIOBufferFrameSize: requested buffer size is %lu", inIOBufferFrameSize);
+	#endif
+
 	if(mIOBufferFrameSize != inIOBufferFrameSize)
 	{
+		#if	Log_BufferSizeChanges
+			DebugMessageN1("HP_Device::Do_SetIOBufferFrameSize: changing the buffer size to %lu", inIOBufferFrameSize);
+		#endif
+
+		//	mark the telemetry
+#if Use_HAL_Telemetry
+		mIOCycleTelemetry->IOBufferSizeChangeBegin(GetIOCycleNumber(), inIOBufferFrameSize);
+#else
+		HAL_IOBUFFERSIZECHANGEBEGIN(GetIOCycleNumber(), inIOBufferFrameSize);
+#endif
 		//  do the work
 		mIOBufferFrameSize = inIOBufferFrameSize;
-		mIOProcList->ReallocateAllIOProcBufferLists();
-		
-		//  make a list to hold the notifications
-		CAPropertyAddressList theChangedProperties;
-		
-		//  add the global scoped notifications, since they always apply
-		CAPropertyAddress theAddress(kAudioDevicePropertyBufferSize, kAudioObjectPropertyScopeGlobal, 0);
-		theChangedProperties.AppendItem(theAddress);
-		theAddress.mSelector = kAudioDevicePropertyBufferFrameSize;
-		theChangedProperties.AppendItem(theAddress);
-		
-		//  allow subclasses to do work
-		IOBufferFrameSizeChanged(theChangedProperties);
-		
-		//	note that we need to be sure that the device state lock is not held while we call the listeners
-		bool ownsIOGuard = false;
-		CAGuard* theIOGuard = GetIOGuard();
-		if(theIOGuard != NULL)
+		if(mIOProcList != NULL)
 		{
-			ownsIOGuard = theIOGuard->IsOwnedByCurrentThread();
-			if(ownsIOGuard)
+			mIOProcList->ReallocateAllIOProcBufferLists();
+		}
+		
+		//	there's less work to do 
+		if(inSendNotifications)
+		{
+			//  make a list to hold the notifications
+			CAPropertyAddressList theChangedProperties;
+			
+			//  add the global scoped notifications, since they always apply
+			CAPropertyAddress theAddress(kAudioDevicePropertyBufferSize, kAudioObjectPropertyScopeGlobal, 0);
+			theChangedProperties.AppendItem(theAddress);
+			theAddress.mSelector = kAudioDevicePropertyBufferFrameSize;
+			theChangedProperties.AppendItem(theAddress);
+			
+			//  allow subclasses to do work
+			IOBufferFrameSizeChanged(true, &theChangedProperties);
+			
+			//	note that we need to be sure that the device state lock is not held while we call the listeners
+			bool ownsIOGuard = false;
+			CAGuard* theIOGuard = GetIOGuard();
+			if(theIOGuard != NULL)
 			{
-				theIOGuard->Unlock();
+				ownsIOGuard = theIOGuard->IsOwnedByCurrentThread();
+				if(ownsIOGuard)
+				{
+					theIOGuard->Unlock();
+				}
+			}
+			
+			//  send the notifications
+			PropertiesChanged(theChangedProperties.GetNumberItems(), theChangedProperties.GetItems());
+			
+			//	re-lock the mutex
+			if((theIOGuard != NULL) && ownsIOGuard)
+			{
+				theIOGuard->Lock();
 			}
 		}
-		
-		//  send the notifications
-		PropertiesChanged(theChangedProperties.GetNumberItems(), theChangedProperties.GetItems());
-		
-		//	re-lock the mutex
-		if((theIOGuard != NULL) && ownsIOGuard)
+		else
 		{
-			theIOGuard->Lock();
+			//  allow subclasses to do work
+			IOBufferFrameSizeChanged(false, NULL);
 		}
+		
+		//	mark the telemetry
+#if Use_HAL_Telemetry
+		mIOCycleTelemetry->IOBufferSizeChangeEnd(GetIOCycleNumber());
+#else
+		HAL_IOBUFFERSIZECHANGEEND(GetIOCycleNumber());
+#endif
 	}
 }
 
@@ -1792,7 +1915,7 @@ bool	HP_Device::CallIOProcs(const AudioTimeStamp& /*inCurrentTime*/, const Audio
 	return true;
 }
 
-void	HP_Device::IOBufferFrameSizeChanged(CAPropertyAddressList& /*outChangedProperties*/)
+void	HP_Device::IOBufferFrameSizeChanged(bool /*inSendNotifications*/, CAPropertyAddressList* /*outChangedProperties*/)
 {
 }
 
@@ -1882,7 +2005,12 @@ Float64	HP_Device::GetCurrentNominalSampleRate() const
 Float64	HP_Device::GetCurrentActualSampleRate() const
 {
 	//	This routine should return the measured sample rate of the device when IO is running.
-	return GetCurrentNominalSampleRate();
+	Float64 theAnswer = 0.0;
+	if(IsIOEngineRunning())
+	{
+		theAnswer = GetCurrentNominalSampleRate();
+	}
+	return theAnswer;
 }
 
 void	HP_Device::StartIOCycleTimingServices()
@@ -2527,25 +2655,11 @@ AudioObjectPropertySelector	HP_Device::GetPrimaryValueChangedPropertySelectorFor
 	switch(inControl->GetClassID())
 	{
 		case kAudioStereoPanControlClassID:
-			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
-			{
-				theAnswer = kAudioDevicePropertyPlayThruStereoPan;
-			}
-			else
-			{
-				theAnswer = kAudioDevicePropertyStereoPan;
-			}
+			theAnswer = kAudioDevicePropertyStereoPan;
 			break;
 		
 		case kAudioVolumeControlClassID:
-			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
-			{
-				theAnswer = kAudioDevicePropertyPlayThruVolumeScalar;
-			}
-			else
-			{
-				theAnswer = kAudioDevicePropertyVolumeScalar;
-			}
+			theAnswer = kAudioDevicePropertyVolumeScalar;
 			break;
 		
 		case kAudioLFEVolumeControlClassID:
@@ -2557,25 +2671,11 @@ AudioObjectPropertySelector	HP_Device::GetPrimaryValueChangedPropertySelectorFor
 			break;
 		
 		case kAudioMuteControlClassID:
-			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
-			{
-				theAnswer = kAudioDevicePropertyPlayThru;
-			}
-			else
-			{
-				theAnswer = kAudioDevicePropertyMute;
-			}
+			theAnswer = kAudioDevicePropertyMute;
 			break;
 		
 		case kAudioSoloControlClassID:
-			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
-			{
-				theAnswer = kAudioDevicePropertyPlayThruSolo;
-			}
-			else
-			{
-				theAnswer = kAudioDevicePropertySolo;
-			}
+			theAnswer = kAudioDevicePropertySolo;
 			break;
 		
 		case kAudioJackControlClassID:
@@ -2614,15 +2714,14 @@ AudioObjectPropertySelector	HP_Device::GetSecondaryValueChangedPropertySelectorF
 	AudioObjectPropertySelector theAnswer = 0;
 	switch(inControl->GetClassID())
 	{
-		case kAudioVolumeControlClassID:
+		case kAudioStereoPanControlClassID:
 			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
 			{
-				theAnswer = kAudioDevicePropertyPlayThruVolumeDecibels;
+				theAnswer = kAudioDevicePropertyPlayThruStereoPan;
 			}
-			else
-			{
-				theAnswer = kAudioDevicePropertyVolumeDecibels;
-			}
+			break;
+		case kAudioVolumeControlClassID:
+			theAnswer = kAudioDevicePropertyVolumeDecibels;
 			break;
 		
 		case kAudioLFEVolumeControlClassID:
@@ -2632,35 +2731,197 @@ AudioObjectPropertySelector	HP_Device::GetSecondaryValueChangedPropertySelectorF
 		case kAudioBootChimeVolumeControlClassID:
 			theAnswer = kAudioHardwarePropertyBootChimeVolumeDecibels;
 			break;
+			
+		case kAudioMuteControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyPlayThru;
+			}
+			break;
+		
+		case kAudioSoloControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyPlayThruSolo;
+			}
+			break;
+			
 	};
 	return theAnswer;
 }
 
-AudioObjectPropertySelector	HP_Device::GetRangeChangedPropertySelectorForControl(HP_Control* inControl) const
+AudioObjectPropertySelector	HP_Device::GetThirdValueChangedPropertySelectorForControl(HP_Control* inControl) const
 {
 	AudioObjectPropertySelector theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioVolumeControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyPlayThruVolumeScalar;
+			}
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertySelector	HP_Device::GetFourthValueChangedPropertySelectorForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertySelector theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioVolumeControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyPlayThruVolumeDecibels;
+			}
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertyScope	HP_Device::GetPrimaryValueChangedPropertyScopeForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertyScope theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioStereoPanControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioLFEVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioBootChimeVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioMuteControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioSoloControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioJackControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioLFEMuteControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioISubOwnerControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioDataSourceControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioDataDestinationControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioClockSourceControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioLineLevelControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertyScope	HP_Device::GetSecondaryValueChangedPropertyScopeForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertyScope theAnswer = 0;
 	switch(inControl->GetClassID())
 	{
 		case kAudioStereoPanControlClassID:
 			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
 			{
-				theAnswer = kAudioDevicePropertyPlayThruStereoPanChannels;
+				theAnswer = kAudioDevicePropertyScopeInput;
 			}
-			else
+			break;
+		case kAudioVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioLFEVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioBootChimeVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+			
+		case kAudioMuteControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
 			{
-				theAnswer = kAudioDevicePropertyStereoPanChannels;
+				theAnswer = kAudioDevicePropertyScopeInput;
 			}
 			break;
 		
+		case kAudioSoloControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyScopeInput;
+			}
+			break;
+			
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertyScope	HP_Device::GetThirdValueChangedPropertyScopeForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertyScope theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
 		case kAudioVolumeControlClassID:
 			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
 			{
-				theAnswer = kAudioDevicePropertyPlayThruVolumeRangeDecibels;
+				theAnswer = kAudioDevicePropertyScopeInput;
 			}
-			else
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertyScope	HP_Device::GetFourthValueChangedPropertyScopeForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertyScope theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioVolumeControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
 			{
-				theAnswer = kAudioDevicePropertyVolumeRangeDecibels;
+				theAnswer = kAudioDevicePropertyScopeInput;
 			}
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertySelector	HP_Device::GetPrimaryRangeChangedPropertySelectorForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertySelector theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioStereoPanControlClassID:
+			theAnswer = kAudioDevicePropertyStereoPanChannels;
+			break;
+		
+		case kAudioVolumeControlClassID:
+			theAnswer = kAudioDevicePropertyVolumeRangeDecibels;
 			break;
 		
 		case kAudioLFEVolumeControlClassID:
@@ -2685,6 +2946,90 @@ AudioObjectPropertySelector	HP_Device::GetRangeChangedPropertySelectorForControl
 		
 		case kAudioLineLevelControlClassID:
 			theAnswer = kAudioDevicePropertyChannelNominalLineLevels;
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertySelector	HP_Device::GetSecondaryRangeChangedPropertySelectorForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertySelector theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioStereoPanControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyPlayThruStereoPanChannels;
+			}
+			break;
+		
+		case kAudioVolumeControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyPlayThruVolumeRangeDecibels;
+			}
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertyScope	HP_Device::GetPrimaryRangeChangedPropertyScopeForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertyScope theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioStereoPanControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioLFEVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioBootChimeVolumeControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioDataSourceControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioDataDestinationControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioClockSourceControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+		
+		case kAudioLineLevelControlClassID:
+			theAnswer = inControl->GetPropertyScope();
+			break;
+	};
+	return theAnswer;
+}
+
+AudioObjectPropertyScope	HP_Device::GetSecondaryRangeChangedPropertyScopeForControl(HP_Control* inControl) const
+{
+	AudioObjectPropertyScope theAnswer = 0;
+	switch(inControl->GetClassID())
+	{
+		case kAudioStereoPanControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyScopeInput;
+			}
+			break;
+		
+		case kAudioVolumeControlClassID:
+			if(inControl->GetPropertyScope() == kAudioDevicePropertyScopePlayThrough)
+			{
+				theAnswer = kAudioDevicePropertyScopeInput;
+			}
 			break;
 	};
 	return theAnswer;

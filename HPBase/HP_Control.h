@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_Control.h
-
-==================================================================================================*/
 #if !defined(__HP_Control_h__)
 #define __HP_Control_h__
 
@@ -98,6 +94,11 @@ public:
 
 	virtual void						ValueChanged();
 	virtual void						RangeChanged();
+
+protected:
+	virtual void						GetValueChangedDeviceNotifications(CAPropertyAddressList& outDeviceNotifications);
+	virtual void						GetRangeChangedDeviceNotifications(CAPropertyAddressList& outDeviceNotifications);
+	virtual void						SendNotifications(const CAPropertyAddressList& inDeviceNotifications);
 
 //	Implementation
 protected:

@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_HogMode.h
-
-==================================================================================================*/
 #if !defined(__HP_HogMode_h__)
 #define __HP_HogMode_h__
 
@@ -55,13 +51,20 @@
 
 //	System Includes
 #include <CoreFoundation/CoreFoundation.h>
+#include <pthread.h>
 #include <sys/types.h>
+
+//#define	HogMode_UseCFPrefs	1
 
 //==================================================================================================
 //	Types
 //==================================================================================================
 
 class	HP_Device;
+
+#if	!HogMode_UseCFPrefs
+	class	CASettingsStorage;
+#endif
 
 //==================================================================================================
 //	HP_HogMode
@@ -77,33 +80,44 @@ class HP_HogMode
 
 //	Construction/Destruction
 public:
-						HP_HogMode(HP_Device* inDevice);
-	virtual				~HP_HogMode();
+									HP_HogMode(HP_Device* inDevice);
+	virtual							~HP_HogMode();
+	
+	virtual void					Initialize();
+
+private:
+	static void						StaticInitializer();
+	
+	static pthread_once_t			sStaticInitializer;
 
 //	Operations
 public:
-	pid_t				GetOwner() const;
-	bool				IsFree() const;
-	bool				CurrentProcessIsOwner() const;
-	bool				CurrentProcessIsOwnerOrIsFree() const;
-
-	void				Take();
-	void				Release();
+	pid_t							GetOwner() const;
+	bool							IsFree() const;
+	bool							CurrentProcessIsOwner() const;
+	bool							CurrentProcessIsOwnerOrIsFree() const;
+	
+	void							Take();
+	void							Release();
 
 //	Implementation
-private:
-	HP_Device*			GetDevice() const { return mDevice; }
-	void				SetOwner(pid_t inOwner) { mOwner = inOwner; }
-	pid_t				GetOwnerFromPreference(bool inSendNotifications) const;
-	void				SetOwnerInPreference(pid_t inOwner) const;
-	void				SendHogModeChangedNotification() const;
-	static void			ChangeNotification(CFNotificationCenterRef inCenter, const void* inHogModeToken, CFStringRef inNotificationName, const void* inObject, CFDictionaryRef inUserInfo);
+protected:
+	HP_Device*						GetDevice() const { return mDevice; }
+	void							SetOwner(pid_t inOwner) { mOwner = inOwner; }
+	virtual pid_t					GetOwnerFromPreference(bool inSendNotifications) const;
+	virtual void					SetOwnerInPreference(pid_t inOwner) const;
+	virtual void					MarkPreferencesDirty();
+	virtual void					SendHogModeChangedNotification() const;
+	static void						ChangeNotification(CFNotificationCenterRef inCenter, const void* inHogModeToken, CFStringRef inNotificationName, const void* inObject, CFDictionaryRef inUserInfo);
 	
-	UInt32				mToken;
-	HP_Device*			mDevice;
-	CFStringRef			mPrefName;
-	pid_t				mOwner;
+	UInt32							mToken;
+	HP_Device*						mDevice;
+	CFStringRef						mPrefName;
+	pid_t							mOwner;
 	
+#if	!HogMode_UseCFPrefs
+	static CASettingsStorage*		sSettingsStorage;
+#endif	
 	static CATokenMap<HP_HogMode>*	sTokenMap;
 
 };

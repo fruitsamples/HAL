@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_SystemInfo.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -71,6 +66,11 @@ void	HP_SystemInfo::Initialize()
 		AudioObjectAddPropertyListener(kAudioObjectSystemObject, &theAddress, SystemListener, NULL);
 		SystemListener(kAudioObjectSystemObject, 1, &theAddress, NULL);
 		
+		//	set up the mixing mono to stereo status
+		theAddress.mSelector = 'stmo';	//	kAudioHardwarePropertyMixStereoToMono
+		AudioObjectAddPropertyListener(kAudioObjectSystemObject, &theAddress, SystemListener, NULL);
+		SystemListener(kAudioObjectSystemObject, 1, &theAddress, NULL);
+		
 		sIsInitialized = true;
 	}
 }
@@ -89,6 +89,24 @@ void	HP_SystemInfo::Teardown()
 	}
 }
 	
+bool	HP_SystemInfo::IsCurrentProcessTheMaster()
+{
+	UInt32 isMaster = 0;
+	UInt32 theSize = SizeOf32(UInt32);
+	AudioObjectPropertyAddress theAddress = { kAudioHardwarePropertyProcessIsMaster, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster };
+	AudioObjectGetPropertyData(kAudioObjectSystemObject, &theAddress, 0, NULL, &theSize, &isMaster);
+	return isMaster != 0;
+}
+
+bool	HP_SystemInfo::IsCurrentProcessInitingOrExiting()
+{
+	UInt32 isInitingOrExiting = 0;
+	UInt32 theSize = SizeOf32(UInt32);
+	AudioObjectPropertyAddress theAddress = { kAudioHardwarePropertyIsInitingOrExiting, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster };
+	AudioObjectGetPropertyData(kAudioObjectSystemObject, &theAddress, 0, NULL, &theSize, &isInitingOrExiting);
+	return isInitingOrExiting != 0;
+}
+
 OSStatus	HP_SystemInfo::SystemListener(AudioObjectID inObjectID, UInt32 inNumberAddresses, const AudioObjectPropertyAddress inAddresses[], void* /*inClientData*/)
 {
 	if(inObjectID == kAudioObjectSystemObject)
@@ -101,7 +119,7 @@ OSStatus	HP_SystemInfo::SystemListener(AudioObjectID inObjectID, UInt32 inNumber
 					{
 						CAPropertyAddress theAddress('user');	//	kAudioHardwarePropertyUserSessionIsActiveOrHeadless
 						UInt32 theUserSessionIsActiveOrHeadless = 1;
-						UInt32 theSize = sizeof(UInt32);
+						UInt32 theSize = SizeOf32(UInt32);
 						AudioObjectGetPropertyData(kAudioObjectSystemObject, &theAddress, 0, NULL, &theSize, &theUserSessionIsActiveOrHeadless);
 						sCurrentUserSessionIsActiveOrHeadless = theUserSessionIsActiveOrHeadless != 0;
 					}
@@ -111,9 +129,22 @@ OSStatus	HP_SystemInfo::SystemListener(AudioObjectID inObjectID, UInt32 inNumber
 					{
 						CAPropertyAddress theAddress('pmut');	//	kAudioHardwarePropertyProcessIsAudible
 						UInt32 theProcessIsAudible = 1;
-						UInt32 theSize = sizeof(UInt32);
+						UInt32 theSize = SizeOf32(UInt32);
 						AudioObjectGetPropertyData(kAudioObjectSystemObject, &theAddress, 0, NULL, &theSize, &theProcessIsAudible);
 						sCurrentProcessIsAudible = theProcessIsAudible != 0;
+					}
+					break;
+				
+				case 'stmo':	//	kAudioHardwarePropertyMixStereoToMono
+					{
+						CAPropertyAddress theAddress('stmo');	//	kAudioHardwarePropertyMixStereoToMono
+						UInt32 theIsMixingStereoToMono = 1;
+						UInt32 theSize = SizeOf32(UInt32);
+						OSStatus theError = AudioObjectGetPropertyData(kAudioObjectSystemObject, &theAddress, 0, NULL, &theSize, &theIsMixingStereoToMono);
+						if(theError == 0)
+						{
+							sIsMixingStereoToMono = theIsMixingStereoToMono != 0;
+						}
 					}
 					break;
 			};
@@ -126,3 +157,4 @@ OSStatus	HP_SystemInfo::SystemListener(AudioObjectID inObjectID, UInt32 inNumber
 bool	HP_SystemInfo::sIsInitialized = false;
 bool	HP_SystemInfo::sCurrentUserSessionIsActiveOrHeadless = true;
 bool	HP_SystemInfo::sCurrentProcessIsAudible = true;
+bool	HP_SystemInfo::sIsMixingStereoToMono = false;

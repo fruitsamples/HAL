@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_IOCycleTelemetry.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -88,11 +83,11 @@ void	HP_IOCycleTelemetry::Initialize(CFStringRef /*inName*/)
 	CACFString theUID(mDevice->CopyDeviceUID());
 	
 	//	get the CFHash of the UID
-	UInt32 theHashCode = CFHash(theUID.GetCFString());
+	UInt32 theHashCode = ToUInt32(CFHash(theUID.GetCFString()));
 	
 	//	sum all the characters in the UID
 	UInt64 theSum = 0;
-	UInt32 theNumberCharacters = CFStringGetLength(theUID.GetCFString());
+	UInt32 theNumberCharacters = ToUInt32(CFStringGetLength(theUID.GetCFString()));
 	for(UInt32 theCharacterIndex = 0; theCharacterIndex < theNumberCharacters; ++theCharacterIndex)
 	{
 		UniChar theCharacter = CFStringGetCharacterAtIndex(theUID.GetCFString(), theCharacterIndex);

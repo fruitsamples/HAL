@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_FormatList.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -380,7 +375,7 @@ UInt32  HP_FormatList::CalculateIOBufferByteSize(const AudioStreamBasicDescripti
 		
 		case kAudioFormat60958AC3:
 			//	IEC 60958 formats work like 16 bit stereo linear PCM
-			theAnswer = 2 * sizeof(SInt16) * inIOBufferFrameSize;
+			theAnswer = 2 * SizeOf32(SInt16) * inIOBufferFrameSize;
 			break;
 			
 		case kAudioFormatAC3:
@@ -412,7 +407,7 @@ UInt32  HP_FormatList::CalculateIOBufferFrameSize(const AudioStreamBasicDescript
 		
 		case kAudioFormat60958AC3:
 			//	IEC 60958 formats work like 16 bit stereo linear PCM
-			theAnswer = inIOBufferByteSize / (2 * sizeof(SInt16));
+			theAnswer = inIOBufferByteSize / (2 * SizeOf32(SInt16));
 			break;
 			
 		case kAudioFormatAC3:
@@ -474,7 +469,7 @@ UInt32	HP_FormatList::GetNumberAvailableNominalSampleRateRanges() const
 {
 	HP_SampleRateRangeList theAvailableRates;
 	GatherAvailableNominalSampleRateRanges(theAvailableRates);
-	return theAvailableRates.size();
+	return ToUInt32(theAvailableRates.size());
 }
 
 void	HP_FormatList::GetAvailableNominalSampleRateRangeByIndex(UInt32 inIndex, AudioValueRange& outRange) const
@@ -686,59 +681,59 @@ UInt32	HP_FormatList::GetPropertyDataSize(const AudioObjectPropertyAddress& inAd
 	{
 		//  device properties
 		case kAudioDevicePropertySupportsMixing:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 			
 		case kAudioDevicePropertyNominalSampleRate:
-			theAnswer = sizeof(Float64);
+			theAnswer = SizeOf32(Float64);
 			break;
 			
 		case kAudioDevicePropertyAvailableNominalSampleRates:
-			theAnswer = GetNumberAvailableNominalSampleRateRanges() * sizeof(AudioValueRange);
+			theAnswer = GetNumberAvailableNominalSampleRateRanges() * SizeOf32(AudioValueRange);
 			break;
 		
 		//  stream properties
 		case kAudioStreamPropertyVirtualFormat:
 			//  aka kAudioDevicePropertyStreamFormat
-			theAnswer = sizeof(AudioStreamBasicDescription);
+			theAnswer = SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioStreamPropertyAvailableVirtualFormats:
-			theAnswer = GetNumberAvailableVirtualFormats() * sizeof(AudioStreamRangedDescription);
+			theAnswer = GetNumberAvailableVirtualFormats() * SizeOf32(AudioStreamRangedDescription);
 			break;
 			
 		case kAudioStreamPropertyPhysicalFormat:
-			theAnswer = sizeof(AudioStreamBasicDescription);
+			theAnswer = SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioStreamPropertyAvailablePhysicalFormats:
-			theAnswer = GetNumberAvailablePhysicalFormats() * sizeof(AudioStreamRangedDescription);
+			theAnswer = GetNumberAvailablePhysicalFormats() * SizeOf32(AudioStreamRangedDescription);
 			break;
 			
 		//  obsolete device properties
 		case kAudioDevicePropertyStreamFormats:
-			theAnswer = GetNumberAvailableVirtualFormats() * sizeof(AudioStreamBasicDescription);
+			theAnswer = GetNumberAvailableVirtualFormats() * SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioDevicePropertyStreamFormatSupported:
-			theAnswer = sizeof(AudioStreamBasicDescription);
+			theAnswer = SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioDevicePropertyStreamFormatMatch:
-			theAnswer = sizeof(AudioStreamBasicDescription);
+			theAnswer = SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		//  obsolete stream properties
 		case kAudioStreamPropertyPhysicalFormats:
-			theAnswer = GetNumberAvailablePhysicalFormats() * sizeof(AudioStreamBasicDescription);
+			theAnswer = GetNumberAvailablePhysicalFormats() * SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioStreamPropertyPhysicalFormatSupported:
-			theAnswer = sizeof(AudioStreamBasicDescription);
+			theAnswer = SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioStreamPropertyPhysicalFormatMatch:
-			theAnswer = sizeof(AudioStreamBasicDescription);
+			theAnswer = SizeOf32(AudioStreamBasicDescription);
 			break;
 	};
 	
@@ -768,14 +763,14 @@ void	HP_FormatList::GetPropertyData(const AudioObjectPropertyAddress& inAddress,
 			break;
 			
 		case kAudioDevicePropertyAvailableNominalSampleRates:
-			theNumberFormats = std::min((UInt32)(ioDataSize / sizeof(AudioValueRange)), GetNumberAvailableNominalSampleRateRanges());
+			theNumberFormats = std::min((UInt32)(ioDataSize / SizeOf32(AudioValueRange)), GetNumberAvailableNominalSampleRateRanges());
 			theRanges = static_cast<AudioValueRange*>(outData);
 			for(theIndex = 0; theIndex < theNumberFormats; ++theIndex)
 			{
 				GetAvailableNominalSampleRateRangeByIndex(theIndex, theRanges[theIndex]);
 			}
 			std::sort(&theRanges[0], &theRanges[theNumberFormats], CAAudioValueRange::LessThan());
-			ioDataSize = theNumberFormats * sizeof(AudioValueRange);
+			ioDataSize = theNumberFormats * SizeOf32(AudioValueRange);
 			break;
 		
 		//  stream properties
@@ -786,12 +781,12 @@ void	HP_FormatList::GetPropertyData(const AudioObjectPropertyAddress& inAddress,
 			break;
 			
 		case kAudioStreamPropertyAvailableVirtualFormats:
-			theNumberFormats = std::min((UInt32)(ioDataSize / sizeof(AudioStreamRangedDescription)), GetNumberAvailableVirtualFormats());
+			theNumberFormats = std::min((UInt32)(ioDataSize / SizeOf32(AudioStreamRangedDescription)), GetNumberAvailableVirtualFormats());
 			for(theIndex = 0; theIndex < theNumberFormats; ++theIndex)
 			{
 				GetAvailableVirtualFormatByIndex(theIndex, theAvailableFormatPtr[theIndex]);
 			}
-			ioDataSize = theNumberFormats * sizeof(AudioStreamRangedDescription);
+			ioDataSize = theNumberFormats * SizeOf32(AudioStreamRangedDescription);
 			break;
 			
 		case kAudioStreamPropertyPhysicalFormat:
@@ -800,23 +795,23 @@ void	HP_FormatList::GetPropertyData(const AudioObjectPropertyAddress& inAddress,
 			break;
 			
 		case kAudioStreamPropertyAvailablePhysicalFormats:
-			theNumberFormats = std::min((UInt32)(ioDataSize / sizeof(AudioStreamRangedDescription)), GetNumberAvailablePhysicalFormats());
+			theNumberFormats = std::min((UInt32)(ioDataSize / SizeOf32(AudioStreamRangedDescription)), GetNumberAvailablePhysicalFormats());
 			for(theIndex = 0; theIndex < theNumberFormats; ++theIndex)
 			{
 				GetAvailablePhysicalFormatByIndex(theIndex, theAvailableFormatPtr[theIndex]);
 			}
-			ioDataSize = theNumberFormats * sizeof(AudioStreamRangedDescription);
+			ioDataSize = theNumberFormats * SizeOf32(AudioStreamRangedDescription);
 			break;
 			
 		//  obsolete device properties
 		case kAudioDevicePropertyStreamFormats:
-			theNumberFormats = std::min((UInt32)(ioDataSize / sizeof(AudioStreamBasicDescription)), GetNumberAvailableVirtualFormats());
+			theNumberFormats = std::min((UInt32)(ioDataSize / SizeOf32(AudioStreamBasicDescription)), GetNumberAvailableVirtualFormats());
 			for(theIndex = 0; theIndex < theNumberFormats; ++theIndex)
 			{
 				GetAvailableVirtualFormatByIndex(theIndex, theAvailableFormat);
 				theFormatDataPtr[theIndex] = theAvailableFormat.mFormat;
 			}
-			ioDataSize = theNumberFormats * sizeof(AudioStreamBasicDescription);
+			ioDataSize = theNumberFormats * SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioDevicePropertyStreamFormatSupported:
@@ -831,13 +826,13 @@ void	HP_FormatList::GetPropertyData(const AudioObjectPropertyAddress& inAddress,
 			
 		//  obsolete stream properties
 		case kAudioStreamPropertyPhysicalFormats:
-			theNumberFormats = std::min((UInt32)(ioDataSize / sizeof(AudioStreamBasicDescription)), GetNumberAvailablePhysicalFormats());
+			theNumberFormats = std::min((UInt32)(ioDataSize / SizeOf32(AudioStreamBasicDescription)), GetNumberAvailablePhysicalFormats());
 			for(theIndex = 0; theIndex < theNumberFormats; ++theIndex)
 			{
 				GetAvailablePhysicalFormatByIndex(theIndex, theAvailableFormat);
 				theFormatDataPtr[theIndex] = theAvailableFormat.mFormat;
 			}
-			ioDataSize = theNumberFormats * sizeof(AudioStreamBasicDescription);
+			ioDataSize = theNumberFormats * SizeOf32(AudioStreamBasicDescription);
 			break;
 			
 		case kAudioStreamPropertyPhysicalFormatSupported:
@@ -1238,7 +1233,7 @@ UInt32  HP_FormatList::AFL_GetNumberFormats(const HP_FormatList::AvailableFormat
 	while(theAvailableFormatIterator != inAvailableFormatList.end())
 	{
 		//  count all the ranges for the current sample format (there is one available format per range)
-		theAnswer += theAvailableFormatIterator->mSampleRateRanges.size();
+		theAnswer += ToUInt32(theAvailableFormatIterator->mSampleRateRanges.size());
 		
 		//  go to the next one
 		std::advance(theAvailableFormatIterator, 1);
@@ -1256,7 +1251,7 @@ void	HP_FormatList::AFL_GetFormatByIndex(const HP_FormatList::AvailableFormatLis
 	while(!wasFound && (theAvailableFormatIterator != inAvailableFormatList.end()))
 	{
 		//  get the number of sample rate ranges in the current format
-		UInt32 theNumberSampleRateRanges = theAvailableFormatIterator->mSampleRateRanges.size();
+		UInt32 theNumberSampleRateRanges = ToUInt32(theAvailableFormatIterator->mSampleRateRanges.size());
 		
 		//  see if the requested index falls into the current range of indexes
 		if((inIndex >= theCurrentIndex) && (inIndex < (theCurrentIndex + theNumberSampleRateRanges)))
@@ -1563,7 +1558,7 @@ bool	HP_FormatList::ConvertVirtualFormatToPhysicalFormat(AudioStreamBasicDescrip
 	bool theAnswer = false;
 	
 	//  the only thing that needs to change is to take things in the canonical format and find a matching physical format
-	if((ioFormat.mFormatID == kAudioFormatLinearPCM) && ((ioFormat.mFormatFlags & kAudioFormatFlagsNativeFloatPacked) == kAudioFormatFlagsNativeFloatPacked) && (ioFormat.mBitsPerChannel = (8 * sizeof(Float32))))
+	if((ioFormat.mFormatID == kAudioFormatLinearPCM) && ((ioFormat.mFormatFlags & kAudioFormatFlagsNativeFloatPacked) == kAudioFormatFlagsNativeFloatPacked) && (ioFormat.mBitsPerChannel = (8 * SizeOf32(Float32))))
 	{
 		//  the only thing that can really change is sample rate and the number of channels,
 		//  so set up a physical format with all wildcards
@@ -1695,17 +1690,17 @@ UInt32	HP_DeviceFormatList::GetPropertyDataSize(const AudioObjectPropertyAddress
 	switch(inAddress.mSelector)
 	{
 		case kAudioDevicePropertySupportsMixing:
-			theAnswer = sizeof(UInt32);
+			theAnswer = SizeOf32(UInt32);
 			break;
 		
 		case kAudioDevicePropertyNominalSampleRate:
-			theAnswer = sizeof(Float64);
+			theAnswer = SizeOf32(Float64);
 			break;
 			
 		case kAudioDevicePropertyAvailableNominalSampleRates:
 			if(inAddress.mElement == 0)
 			{
-				theAnswer = GetNumberAvailableMasterNominalSampleRateRanges() * sizeof(AudioValueRange);
+				theAnswer = GetNumberAvailableMasterNominalSampleRateRanges() * SizeOf32(AudioValueRange);
 			}
 			else
 			{
@@ -1779,7 +1774,7 @@ void	HP_DeviceFormatList::GetPropertyData(const AudioObjectPropertyAddress& inAd
 				GatherAvailableNominalSampleRateRanges(theMasterRanges);
 				
 				//	stuff them into the return value
-				theNumberItems = std::min(ioDataSize / sizeof(AudioValueRange), theMasterRanges.size());
+				theNumberItems = std::min(ioDataSize / SizeOf32(AudioValueRange), ToUInt32(theMasterRanges.size()));
 				theRanges = static_cast<AudioValueRange*>(outData);
 				for(theIndex = 0; theIndex < theNumberItems; ++theIndex)
 				{
@@ -1790,7 +1785,7 @@ void	HP_DeviceFormatList::GetPropertyData(const AudioObjectPropertyAddress& inAd
 				std::sort(&theRanges[0], &theRanges[theNumberItems], CAAudioValueRange::LessThan());
 				
 				//	set the returned size
-				ioDataSize = theNumberItems * sizeof(AudioValueRange);
+				ioDataSize = theNumberItems * SizeOf32(AudioValueRange);
 			}
 			else
 			{
@@ -2128,7 +2123,7 @@ UInt32	HP_DeviceFormatList::GetNumberAvailableMasterNominalSampleRateRanges() co
 {
 	HP_SampleRateRangeList theRanges;
 	GatherAvailableNominalSampleRateRanges(theRanges);
-	return theRanges.size();
+	return ToUInt32(theRanges.size());
 }
 
 void	HP_DeviceFormatList::GetAvailableMasterNominalSampleRateRangeByIndex(UInt32 inIndex, AudioValueRange& outRange) const

@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_DeviceCommands.h
-
-==================================================================================================*/
 #if !defined(__HP_DeviceCommands_h__)
 #define __HP_DeviceCommands_h__
 
@@ -234,15 +230,17 @@ public:
 
 //	Construction/Destruction
 public:
-						HP_ChangeBufferSizeCommand(UInt32 inNewBufferFrameSize);
+						HP_ChangeBufferSizeCommand(UInt32 inNewBufferFrameSize, bool inSendNotifications);
 	virtual				~HP_ChangeBufferSizeCommand();
 
 //	Operations
 public:
 	virtual void		Execute(HP_Device* inDevice);
+	UInt32				GetNewBufferFrameSize() const { return mNewBufferFrameSize; }
 
 private:
 	UInt32				mNewBufferFrameSize;
+	bool				mSendNotifications;
 
 };
 

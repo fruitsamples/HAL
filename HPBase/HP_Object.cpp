@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_Object.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -302,7 +297,7 @@ void	HP_Object::Show() const
 	//  get the object's name
 	CAPropertyAddress theAddress(kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMaster);
 	CFStringRef theCFName = NULL;
-	UInt32 theSize = sizeof(CFStringRef);
+	UInt32 theSize = SizeOf32(CFStringRef);
 	try
 	{
 		GetPropertyData(theAddress, 0, NULL, theSize, &theCFName);
@@ -458,7 +453,7 @@ UInt32	HP_Object::GetPropertyDataSize(const AudioObjectPropertyAddress& inAddres
 	{
 		case kAudioObjectPropertyListenerAdded:
 		case kAudioObjectPropertyListenerRemoved:
-			theAnswer = sizeof(AudioObjectPropertyAddress);
+			theAnswer = SizeOf32(AudioObjectPropertyAddress);
 			break;
 			
 		default:
@@ -499,7 +494,11 @@ void	HP_Object::GetPropertyData(const AudioObjectPropertyAddress& inAddress, UIn
 			}
 			else
 			{
-				DebugMessage("HP_Object::GetPropertyData: unknown property");
+#if	CoreAudio_Debug
+				char theSelectorString[5] = CA4CCToCString(inAddress.mSelector);
+				char theScopeString[5] = CA4CCToCString(inAddress.mScope);
+				DebugMessageN3("HP_Object::GetPropertyData: unknown property ('%s', '%s', %lu)", theSelectorString, theScopeString, (long unsigned int)inAddress.mElement);
+#endif
 				Throw(CAException(kAudioHardwareUnknownPropertyError));
 			}
 		}

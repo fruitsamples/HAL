@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_IOThread.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -52,7 +47,11 @@
 
 //	Local Includes
 #include "HP_Device.h"
-#include "HP_IOCycleTelemetry.h"
+#if Use_HAL_Telemetry
+	#include "HP_IOCycleTelemetry.h"
+#else
+	#include "HALdtrace.h"
+#endif
 
 //	PublicUtility Includes
 #include "CAAudioTimeStamp.h"
@@ -60,10 +59,6 @@
 #include "CADebugMacros.h"
 #include "CAException.h"
 #include "CAHostTimeBase.h"
-
-#if Log_SchedulingLatency
-	#include "CALatencyLog.h";
-#endif
 
 //#define	Offset_For_Input	1
 
@@ -87,21 +82,11 @@ HP_IOThread::HP_IOThread(HP_Device* inDevice)
 	mOverloadCounter(0),
 	mWorkLoopPhase(kNotRunningPhase),
 	mStopWorkLoop(false)
-#if Log_SchedulingLatency
-	,mLatencyLog(NULL),
-	mAllowedLatency(CAHostTimeBase::ConvertFromNanos(500 * 1000))
-#endif
 {
-	#if Log_SchedulingLatency
-		mLatencyLog = new CALatencyLog("/tmp/IOThreadLatencyLog", ".txt");
-	#endif
 }
 
 HP_IOThread::~HP_IOThread()
 {
-	#if Log_SchedulingLatency
-		delete mLatencyLog;
-	#endif
 }
 
 Float32	HP_IOThread::GetIOCycleUsage() const
@@ -290,8 +275,11 @@ void	HP_IOThread::WorkLoop()
 	mIOCycleCounter = 0;
 	mOverloadCounter = 0;
 	CAPropertyAddress theIsRunningAddress(kAudioDevicePropertyDeviceIsRunning);
+#if Use_HAL_Telemetry
 	mDevice->GetIOCycleTelemetry().IOCycleInitializeBegin(mIOCycleCounter);
-		
+#else
+	HAL_IOCYCLEINITIALIZEBEGIN(mIOCycleCounter);
+#endif
 	try
 	{
 		//	and signal that the IO thread is running
@@ -339,27 +327,80 @@ void	HP_IOThread::WorkLoop()
 			}
 #endif
 			
+			//	get the current time
+			AudioTimeStamp theCurrentTime;
+			mDevice->GetCurrentTime(theCurrentTime);
+				
 			//	enter the work loop
 			mWorkLoopPhase = kRunningPhase;
 			bool isInNeedOfResynch = false;
+			bool isCheckingForOverloads = false;
+			Float64 theIOBufferFrameSize = mDevice->GetIOBufferFrameSize();
+#if Use_HAL_Telemetry
 			mDevice->GetIOCycleTelemetry().IOCycleInitializeEnd(mIOCycleCounter, mAnchorTime);
+			mDevice->GetIOCycleTelemetry().IOCycleWorkLoopBegin(mIOCycleCounter, theCurrentTime);
+#else
+			HAL_IOCYCLEINITIALIZEEND(mIOCycleCounter, mAnchorTime);
+			HAL_IOCYCLEWORKLOOPBEGIN(mIOCycleCounter, theCurrentTime);
+#endif
 			while(!mStopWorkLoop)
 			{
-				//	get the current time
-				AudioTimeStamp theCurrentTime;
-				mDevice->GetCurrentTime(theCurrentTime);
+				//	get the new IO buffer frame size
+				Float64 theNewIOBufferFrameSize = mDevice->GetIOBufferFrameSize();
 				
-				//	calculate the next wake up time
+				//	initialize the next wake up time
 				AudioTimeStamp theNextWakeUpTime = CAAudioTimeStamp::kZero;
 				theNextWakeUpTime.mFlags = kAudioTimeStampSampleTimeValid + kAudioTimeStampHostTimeValid + kAudioTimeStampRateScalarValid;
-				if(CalculateNextWakeUpTime(theCurrentTime, theNextWakeUpTime, isInNeedOfResynch, wasLocked))
+				
+				//	get the current time
+				mDevice->GetCurrentTime(theCurrentTime);
+				
+				//	we have to run a special, untimed IO cycle if the IO buffer size changed
+				if((theNewIOBufferFrameSize != theIOBufferFrameSize) && (theCurrentTime.mSampleTime >= (mAnchorTime.mSampleTime + mFrameCounter)))
+				{
+					//	mark the end of the previous cycle
+#if Use_HAL_Telemetry
+					mDevice->GetIOCycleTelemetry().IOCycleWorkLoopEnd(mIOCycleCounter, theCurrentTime, theNextWakeUpTime);
+#else
+					HAL_IOCYCLEWORKLOOPEND(mIOCycleCounter, theCurrentTime, theNextWakeUpTime);
+#endif
+					//	increment the cycle counter
+					++mIOCycleCounter;
+					
+					//	increment the frame counter
+					mFrameCounter += theIOBufferFrameSize;
+				
+					//	the new cycle is starting
+#if Use_HAL_Telemetry
+					mDevice->GetIOCycleTelemetry().IOCycleWorkLoopBegin(mIOCycleCounter, theCurrentTime);
+#else
+					HAL_IOCYCLEWORKLOOPBEGIN(mIOCycleCounter, theCurrentTime);
+#endif
+
+					//	do the IO, note that we don't need to update the timing services for this special cycle
+					isInNeedOfResynch = PerformIO(theCurrentTime, theIOBufferFrameSize);
+					
+					//	turn off overload checking for the next cycle to be nice to clients
+					isCheckingForOverloads = false;
+				}
+				
+				//	calculate the next wake up time
+				if(CalculateNextWakeUpTime(theCurrentTime, theIOBufferFrameSize, theNextWakeUpTime, isCheckingForOverloads, isInNeedOfResynch, wasLocked))
 				{
 					//	sleep until the  next wake up time
+#if Use_HAL_Telemetry
 					mDevice->GetIOCycleTelemetry().IOCycleWorkLoopEnd(mIOCycleCounter, theCurrentTime, theNextWakeUpTime);
+#else
+					HAL_IOCYCLEWORKLOOPEND(mIOCycleCounter, theCurrentTime, theNextWakeUpTime);
+#endif
+
 					mIOGuard.WaitUntil(CAHostTimeBase::ConvertToNanos(theNextWakeUpTime.mHostTime));
 					
-					//	increment the counter
+					//	increment the cycle counter
 					++mIOCycleCounter;
+					
+					//	make sure overload checking is enabled
+					isCheckingForOverloads = true;
 					
 					//	do IO if the thread wasn't stopped
 					if(!mStopWorkLoop)
@@ -367,25 +408,21 @@ void	HP_IOThread::WorkLoop()
 						//	get the current time
 						mDevice->GetCurrentTime(theCurrentTime);
 						
-						#if Log_SchedulingLatency
-							//	check to see if we have incurred a large scheduling latency
-							if(theCurrentTime.mHostTime > (theNextWakeUpTime.mHostTime + mAllowedLatency))
-							{
-								//	log it
-								mLatencyLog->Capture(theNextWakeUpTime.mHostTime - mAllowedLatency, theCurrentTime.mHostTime, true);
-								
-								//	print how late we are
-								DebugMessageN1("HP_IOThread::WorkLoop: woke up late by %f milliseconds", ((Float64)CAHostTimeBase::ConvertToNanos(theCurrentTime.mHostTime - theNextWakeUpTime.mHostTime)) / (1000.0 * 1000.0));
-							}
-						#endif
-						
 						if(theCurrentTime.mSampleTime >= (mAnchorTime.mSampleTime + mFrameCounter))
 						{
 							//	increment the frame counter
-							mFrameCounter += mDevice->GetIOBufferFrameSize();
+							mFrameCounter += theIOBufferFrameSize;
 						
+							//	refresh the current buffer size
+							theIOBufferFrameSize = theNewIOBufferFrameSize;
+							
 							//	the new cycle is starting
+#if Use_HAL_Telemetry
 							mDevice->GetIOCycleTelemetry().IOCycleWorkLoopBegin(mIOCycleCounter, theCurrentTime);
+#else
+							HAL_IOCYCLEWORKLOOPBEGIN(mIOCycleCounter, theCurrentTime);
+#endif
+
 							if(mDevice->UpdateIOCycleTimingServices())
 							{
 								//	something unexpected happenned with the time stamp, so resynch prior to doing IO
@@ -404,10 +441,17 @@ void	HP_IOThread::WorkLoop()
 								
 								//	re-get the current time too
 								mDevice->GetCurrentTime(theCurrentTime);
+								
+								//	mark the telemetry
+#if Use_HAL_Telemetry
+								mDevice->GetIOCycleTelemetry().Resynch(GetIOCycleNumber(), mAnchorTime);
+#else
+								HAL_RESYNCH(GetIOCycleNumber(), mAnchorTime);
+#endif
 							}
 						
 							//	do the IO
-							isInNeedOfResynch = PerformIO(theCurrentTime);
+							isInNeedOfResynch = PerformIO(theCurrentTime, theIOBufferFrameSize);
 						}
 					}
 				}
@@ -425,7 +469,11 @@ void	HP_IOThread::WorkLoop()
 		}
 	
 		mWorkLoopPhase = kTeardownPhase;
+#if Use_HAL_Telemetry
 		mDevice->GetIOCycleTelemetry().IOCycleTeardownBegin(mIOCycleCounter);
+#else
+		HAL_IOCYCLETEARDOWNBEGIN(mIOCycleCounter);
+#endif
 
 		//	the work loop has finished, clear the time constraints
 		ClearTimeConstraints();
@@ -458,7 +506,12 @@ void	HP_IOThread::WorkLoop()
 	//	re-lock the guard
 	wasLocked = mIOGuard.Lock();
 
+#if Use_HAL_Telemetry
 	mDevice->GetIOCycleTelemetry().IOCycleTeardownEnd(mIOCycleCounter);
+#else
+	HAL_IOCYCLETEARDOWNEND(mIOCycleCounter);
+#endif
+
 	mWorkLoopPhase = kNotRunningPhase;
 	mIOGuard.NotifyAll();
 	mIOCycleCounter = 0;
@@ -482,7 +535,7 @@ void	HP_IOThread::ClearTimeConstraints()
 	mIOThread.ClearTimeConstraints();
 }
 
-bool	HP_IOThread::CalculateNextWakeUpTime(const AudioTimeStamp& inCurrentTime, AudioTimeStamp& outNextWakeUpTime, bool inMustResynch, bool& inIOGuardWasLocked)
+bool	HP_IOThread::CalculateNextWakeUpTime(const AudioTimeStamp& inCurrentTime, Float64 inIOBufferFrameSize, AudioTimeStamp& outNextWakeUpTime, bool inCheckForOverloads, bool inMustResynch, bool& inIOGuardWasLocked)
 {
 	bool theAnswer = true;
 	
@@ -495,82 +548,97 @@ bool	HP_IOThread::CalculateNextWakeUpTime(const AudioTimeStamp& inCurrentTime, A
 	while(!isDone)
 	{
 		++theNumberIterations;
-		Float64 theIOBufferFrameSize = mDevice->GetIOBufferFrameSize();
 		
 		//	set up the outNextWakeUpTime
 		outNextWakeUpTime = CAAudioTimeStamp::kZero;
 		outNextWakeUpTime.mFlags = kAudioTimeStampSampleTimeValid + kAudioTimeStampHostTimeValid + kAudioTimeStampRateScalarValid;
 		
-		//	set up the overload time
-		AudioTimeStamp theOverloadTime = CAAudioTimeStamp::kZero;
-		theOverloadTime.mFlags = kAudioTimeStampSampleTimeValid + kAudioTimeStampHostTimeValid + kAudioTimeStampRateScalarValid;
-		
 		//	calculate the sample time for the next wake up time
 		AudioTimeStamp theSampleTime = mAnchorTime;
 		theSampleTime.mFlags = kAudioTimeStampSampleTimeValid;
 		theSampleTime.mSampleTime += mFrameCounter;
-		theSampleTime.mSampleTime += theIOBufferFrameSize;
+		theSampleTime.mSampleTime += inIOBufferFrameSize;
 		
 		//	translate that to a host time
 		mDevice->TranslateTime(theSampleTime, outNextWakeUpTime);
 		
-		//	calculate the overload time
-		Float64 theReservedAmount = std::max(0.0, mIOCycleUsage - kOverloadThreshold);
-		theSampleTime = mAnchorTime;
-		theSampleTime.mFlags = kAudioTimeStampSampleTimeValid;
-		theSampleTime.mSampleTime += mFrameCounter;
-		theSampleTime.mSampleTime += theReservedAmount * theIOBufferFrameSize;
-		
-		//	translate that to a host time
-		mDevice->TranslateTime(theSampleTime, theOverloadTime);
-		
-		if(inMustResynch || (theCurrentTime.mHostTime >= theOverloadTime.mHostTime))
+		if(inCheckForOverloads || inMustResynch)
 		{
-			//	tell the device what happenned
-			mDevice->GetIOCycleTelemetry().IOCycleWorkLoopOverloadBegin(mIOCycleCounter, theCurrentTime, theOverloadTime);
+			//	set up the overload time
+			AudioTimeStamp theOverloadTime = CAAudioTimeStamp::kZero;
+			theOverloadTime.mFlags = kAudioTimeStampSampleTimeValid + kAudioTimeStampHostTimeValid + kAudioTimeStampRateScalarValid;
 			
-			//	the current time is beyond the overload time, have to resynchronize
-			#if Log_Resynchs
-				if(inMustResynch)
+			//	calculate the overload time
+			Float64 theReservedAmount = std::max(0.0, mIOCycleUsage - kOverloadThreshold);
+			theSampleTime = mAnchorTime;
+			theSampleTime.mFlags = kAudioTimeStampSampleTimeValid;
+			theSampleTime.mSampleTime += mFrameCounter;
+			theSampleTime.mSampleTime += theReservedAmount * inIOBufferFrameSize;
+			
+			//	translate that to a host time
+			mDevice->TranslateTime(theSampleTime, theOverloadTime);
+			
+			if(inMustResynch || (theCurrentTime.mHostTime >= theOverloadTime.mHostTime))
+			{
+				//	tell the device what happenned
+#if Use_HAL_Telemetry
+				mDevice->GetIOCycleTelemetry().IOCycleWorkLoopOverloadBegin(mIOCycleCounter, theCurrentTime, theOverloadTime);
+#else
+				HAL_IOCYCLEWORKLOOPOVERLOADBEGIN(mIOCycleCounter, theCurrentTime, theOverloadTime);
+#endif
+
+				//	the current time is beyond the overload time, have to resynchronize
+				#if Log_Resynchs
+					if(inMustResynch)
+					{
+						DebugMessageN1("HP_IOThread::CalculateNextWakeUpTime: resynch was forced %d", theNumberIterations);
+					}
+					else
+					{
+						DebugMessageN1("HP_IOThread::CalculateNextWakeUpTime: wake up time is in the past... resynching %d", theNumberIterations);
+						DebugMessageN3("           Now: %qd Overload: %qd Difference: %qd", CAHostTimeBase::ConvertToNanos(theCurrentTime.mHostTime), CAHostTimeBase::ConvertToNanos(theOverloadTime.mHostTime), CAHostTimeBase::ConvertToNanos(theCurrentTime.mHostTime - theOverloadTime.mHostTime));
+					}
+				#endif
+				
+				//	notify clients that the overload has taken place
+				if(inIOGuardWasLocked)
 				{
-					DebugMessageN1("HP_IOThread::CalculateNextWakeUpTime: resynch was forced %d", theNumberIterations);
+					mIOGuard.Unlock();
+				}
+				CAPropertyAddress theOverloadAddress(kAudioDeviceProcessorOverload);
+				mDevice->PropertiesChanged(1, &theOverloadAddress);
+				inIOGuardWasLocked = mIOGuard.Lock();
+
+				//	re-anchor at the current time
+				theCurrentTime.mSampleTime = 0;
+				theCurrentTime.mHostTime = 0;
+				if(mDevice->EstablishIOCycleAnchorTime(theCurrentTime))
+				{
+					Resynch(&theCurrentTime, false);
 				}
 				else
 				{
-					DebugMessageN1("HP_IOThread::CalculateNextWakeUpTime: wake up time is in the past... resynching %d", theNumberIterations);
-					DebugMessageN3("           Now: %qd Overload: %qd Difference: %qd", CAHostTimeBase::ConvertToNanos(theCurrentTime.mHostTime), CAHostTimeBase::ConvertToNanos(theOverloadTime.mHostTime), CAHostTimeBase::ConvertToNanos(theCurrentTime.mHostTime - theOverloadTime.mHostTime));
+					theAnswer = false;
+					isDone = true;
 				}
-			#endif
-			
-			//	notify clients that the overload has taken place
-			if(inIOGuardWasLocked)
-			{
-				mIOGuard.Unlock();
-			}
-			CAPropertyAddress theOverloadAddress(kAudioDeviceProcessorOverload);
-			mDevice->PropertiesChanged(1, &theOverloadAddress);
-			inIOGuardWasLocked = mIOGuard.Lock();
-
-			//	re-anchor at the current time
-			theCurrentTime.mSampleTime = 0;
-			theCurrentTime.mHostTime = 0;
-			if(mDevice->EstablishIOCycleAnchorTime(theCurrentTime))
-			{
-				Resynch(&theCurrentTime, false);
+				
+				//	reset the forced resynch flag
+				inMustResynch = false;
+#if Use_HAL_Telemetry
+				mDevice->GetIOCycleTelemetry().IOCycleWorkLoopOverloadEnd(mIOCycleCounter, mAnchorTime);
+#else
+				HAL_IOCYCLEWORKLOOPOVERLOADEND(mIOCycleCounter, mAnchorTime);
+#endif
 			}
 			else
 			{
-				theAnswer = false;
+				//	still within the limits
 				isDone = true;
 			}
-			
-			//	reset the forced resynch flag
-			inMustResynch = false;
-			mDevice->GetIOCycleTelemetry().IOCycleWorkLoopOverloadEnd(mIOCycleCounter, mAnchorTime);
 		}
 		else
 		{
-			//	still within the limits
+			//	since we're not checking for overloads, we're also done
 			isDone = true;
 		}
 	}
@@ -590,7 +658,7 @@ bool	HP_IOThread::CalculateNextWakeUpTime(const AudioTimeStamp& inCurrentTime, A
 	return theAnswer;
 }
 
-bool	HP_IOThread::PerformIO(const AudioTimeStamp& inCurrentTime)
+bool	HP_IOThread::PerformIO(const AudioTimeStamp& inCurrentTime, Float64 inIOBufferFrameSize)
 {
 	//	The input head is at the anchor plus the sample counter minus one
 	//	buffer's worth of frames minus the safety offset.
@@ -602,7 +670,7 @@ bool	HP_IOThread::PerformIO(const AudioTimeStamp& inCurrentTime)
 		theInputFrameTime.mFlags = kAudioTimeStampSampleTimeValid;
 		theInputFrameTime.mSampleTime += mFrameCounter;
 		theInputFrameTime.mSampleTime -= mDevice->GetSafetyOffset(true);
-		theInputFrameTime.mSampleTime -= mDevice->GetIOBufferFrameSize();
+		theInputFrameTime.mSampleTime -= inIOBufferFrameSize;
 		
 		//	use that to figure the corresponding host time
 		theInputTime.mFlags = kAudioTimeStampSampleTimeValid + kAudioTimeStampHostTimeValid + kAudioTimeStampRateScalarValid;
@@ -620,7 +688,7 @@ bool	HP_IOThread::PerformIO(const AudioTimeStamp& inCurrentTime)
 		theOutputFrameTime.mFlags = kAudioTimeStampSampleTimeValid;
 		theOutputFrameTime.mSampleTime += mFrameCounter;
 		theOutputFrameTime.mSampleTime += mDevice->GetSafetyOffset(false);
-		theOutputFrameTime.mSampleTime += (mIOCycleUsage * mDevice->GetIOBufferFrameSize());
+		theOutputFrameTime.mSampleTime += (mIOCycleUsage * inIOBufferFrameSize);
 		
 		//	use that to figure the corresponding host time
 		theOutputTime.mFlags = kAudioTimeStampSampleTimeValid + kAudioTimeStampHostTimeValid + kAudioTimeStampRateScalarValid;

@@ -38,11 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_DeviceCommands.cpp
-
-==================================================================================================*/
-
 //==================================================================================================
 //	Includes
 //==================================================================================================
@@ -203,10 +198,11 @@ void	HP_StopAllIOProcsCommand::Execute(HP_Device* inDevice)
 	}
 }
 
-HP_ChangeBufferSizeCommand::HP_ChangeBufferSizeCommand(UInt32 inNewBufferFrameSize)
+HP_ChangeBufferSizeCommand::HP_ChangeBufferSizeCommand(UInt32 inNewBufferFrameSize, bool inSendNotifications)
 :
 	HP_Command(kID),
-	mNewBufferFrameSize(inNewBufferFrameSize)
+	mNewBufferFrameSize(inNewBufferFrameSize),
+	mSendNotifications(inSendNotifications)
 {
 }
 
@@ -218,6 +214,6 @@ void	HP_ChangeBufferSizeCommand::Execute(HP_Device* inDevice)
 {
 	if(inDevice != NULL)
 	{
-		inDevice->SetIOBufferFrameSize(mNewBufferFrameSize);
+		inDevice->SetIOBufferFrameSize(mNewBufferFrameSize, mSendNotifications);
 	}
 }

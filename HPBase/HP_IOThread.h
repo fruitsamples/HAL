@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_IOThread.h
-
-==================================================================================================*/
 #if !defined(__HP_IOThread_h__)
 #define __HP_IOThread_h__
 
@@ -52,10 +48,6 @@
 //	PublicUtility Includes
 #include "CAGuard.h"
 #include "CAPThread.h"
-
-#if	CoreAudio_Debug
-//	#define	Log_SchedulingLatency	1
-#endif
 
 //=============================================================================
 //	Types
@@ -112,8 +104,8 @@ protected:
 	void				WorkLoop();
 	void				SetTimeConstraints();
 	void				ClearTimeConstraints();
-	bool				CalculateNextWakeUpTime(const AudioTimeStamp& inCurrentTime, AudioTimeStamp& outNextWakeUpTime, bool inMustResynch, bool& inIOGuardWasLocked);
-	bool				PerformIO(const AudioTimeStamp& inCurrentTime);
+	bool				CalculateNextWakeUpTime(const AudioTimeStamp& inCurrentTime, Float64 inIOBufferFrameSize, AudioTimeStamp& outNextWakeUpTime, bool inCheckForOverloads, bool inMustResynch, bool& inIOGuardWasLocked);
+	bool				PerformIO(const AudioTimeStamp& inCurrentTime, Float64 inIOBufferFrameSize);
 
 	static void*		ThreadEntry(HP_IOThread* inIOThread);
 	
@@ -127,11 +119,6 @@ protected:
 	UInt32				mOverloadCounter;
 	UInt32				mWorkLoopPhase;
 	volatile bool		mStopWorkLoop;
-	
-	#if Log_SchedulingLatency
-		CALatencyLog*	mLatencyLog;
-		UInt64			mAllowedLatency;
-	#endif
 	
 };
 

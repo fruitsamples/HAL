@@ -38,10 +38,6 @@
 			STRICT LIABILITY OR OTHERWISE, EVEN IF APPLE HAS BEEN ADVISED OF THE
 			POSSIBILITY OF SUCH DAMAGE.
 */
-/*==================================================================================================
-	HP_Stream.h
-
-==================================================================================================*/
 #if !defined(__HP_Stream_h__)
 #define __HP_Stream_h__
 
